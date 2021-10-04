@@ -40,15 +40,43 @@ def keeper(accounts):
 
 @pytest.fixture
 def token():
-    token_address = "0xdac17f958d2ee523a2206206994597c13d831ec7"  # USDT
+    # token_address = "0xdac17f958d2ee523a2206206994597c13d831ec7"  # USDT
     # token_address = "0x6b175474e89094c44da98b954eedeac495271d0f"  # DAI
-    yield Contract(token_address)
+    token_address = "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2"  # WETH
 
+    yield Contract(token_address)
 
 @pytest.fixture
 def token_whale(accounts):
-    yield accounts.at("0xa929022c9107643515f5c777ce9a910f0d1e490c", force=True)
+    # addr = "0xa929022c9107643515f5c777ce9a910f0d1e490c"  # USDT
+    addr = "0x030ba81f1c18d280636f32af80b9aad02cf0854e"  # WETH
+    yield accounts.at(addr, force=True)
 
+@pytest.fixture
+def pool():
+    # pool = "0xb1b225402b5ec977af8c721f42f21db5518785dc"  # USDT via Aave
+    pool = "0xe344646a7E7985948518AB8755A3565bc9211753"  # WETH via Aave
+    yield pool
+
+@pytest.fixture
+def token2():
+    # token_address = "0xdac17f958d2ee523a2206206994597c13d831ec7"  # USDT
+    # token_address = "0x6b175474e89094c44da98b954eedeac495271d0f"  # DAI
+    token_address = "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2"  # WETH
+
+    yield Contract(token_address)
+
+@pytest.fixture
+def token_whale2(accounts):
+    # addr = "0xa929022c9107643515f5c777ce9a910f0d1e490c"  # USDT
+    addr = "0x030ba81f1c18d280636f32af80b9aad02cf0854e"  # WETH
+    yield accounts.at(addr, force=True)
+
+@pytest.fixture
+def pool2():
+    # pool = "0xb1b225402b5ec977af8c721f42f21db5518785dc"  # USDT via Aave
+    pool = "0xe344646a7E7985948518AB8755A3565bc9211753"  # WETH via Aave
+    yield pool
 
 @pytest.fixture
 def amount(accounts, token, user, token_whale):
@@ -71,11 +99,6 @@ def weth_amout(user, weth):
     yield weth_amout
 
 
-@pytest.fixture
-def integrator():
-    integrator = "0xb1b225402b5ec977af8c721f42f21db5518785dc"  # USDT via Aave
-    yield integrator
-
 
 @pytest.fixture
 def stakeToken():
@@ -88,23 +111,40 @@ def bancorRegistry():
 
 
 @pytest.fixture
-def nftDescriptor():
-    yield Contract("0x99dc678f49c7e6ba60932c2814ce13c225d8caa7")
-
-
-@pytest.fixture
 def vault(pm, gov, rewards, guardian, management, token):
     Vault = pm(config["dependencies"][0]).Vault
     vault = guardian.deploy(Vault)
     vault.initialize(token, gov, rewards, "", "", guardian, management)
     vault.setDepositLimit(2 ** 256 - 1, {"from": gov})
     vault.setManagement(management, {"from": gov})
+    vault.setManagementFee(0, {"from": gov})
     yield vault
 
 
 @pytest.fixture
-def strategy(strategist, keeper, vault, Strategy, gov, integrator, stakeToken, bancorRegistry, nftDescriptor):
-    strategy = strategist.deploy(Strategy, vault, integrator, stakeToken, bancorRegistry, nftDescriptor)
+def vault2(pm, gov, rewards, guardian, management, token2):
+    Vault = pm(config["dependencies"][0]).Vault
+    vault = guardian.deploy(Vault)
+    vault.initialize(token2, gov, rewards, "", "", guardian, management)
+    vault.setDepositLimit(2 ** 256 - 1, {"from": gov})
+    vault.setManagement(management, {"from": gov})
+    vault.setManagementFee(0, {"from": gov})
+    yield vault
+
+
+@pytest.fixture
+def percentageFeeModelOwner(accounts):
+    yield accounts.at("0x56f34826cc63151f74fa8f701e4f73c5eaae52ad", force=True)
+
+
+@pytest.fixture
+def percentageFeeModel():
+    yield Contract("0x9c2ae492ec3A49c769bABffC9500256749404f8E")
+
+
+@pytest.fixture
+def strategy(strategist, keeper, vault, Strategy, gov, pool, stakeToken, bancorRegistry):
+    strategy = strategist.deploy(Strategy, vault, pool, stakeToken, bancorRegistry)
     strategy.setKeeper(keeper)
     vault.addStrategy(strategy, 10_000, 0, 2 ** 256 - 1, 1_000, {"from": gov})
     yield strategy

@@ -11,11 +11,16 @@ interface IBancorRegistry {
 interface IBancorRouter {
     function conversionPath(address _sourceToken, address _targetToken) external returns (address[] memory);
 
-    function claimAndConvert2(
+    function claimAndConvert(
         address[] memory _path,
         uint256 _amount,
-        uint256 _minReturn,
-        address _affiliateAccount,
-        uint256 _affiliateFee
+        uint256 _minReturn
     ) external returns (uint256 _out);
+
+    // for eth
+    function convert(
+        address[] memory _path,
+        uint256 _amount,
+        uint256 _minReturn
+    ) external payable returns (uint256 _out);
 }

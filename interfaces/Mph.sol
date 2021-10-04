@@ -23,6 +23,8 @@ interface IVesting {
     function withdraw(uint64 vestID) external returns (uint256 withdrawnAmount);
 
     function token() external returns (address);
+
+    function ownerOf(uint vestId) external view returns (address);
 }
 
 interface IMphMinter {
@@ -129,6 +131,9 @@ interface IDInterest {
         @param virtualTokenAmount the amount of virtual tokens to withdraw
         @param early True if intend to withdraw before maturation, false otherwise
         @return withdrawnStablecoinAmount the amount of stablecoins withdrawn
+
+        NOTE: @param virtualTokenAmount when premature amount takes into account the interest already. If you want to withdraw 10k amount,
+        you must input 10,000 * interest amount. When mature, request exact amount 10k.
      */
     function withdraw(uint64 depositID, uint256 virtualTokenAmount, bool early) external returns (uint256 withdrawnStablecoinAmount);
 
@@ -139,6 +144,19 @@ interface IDInterest {
         @return The deposit struct
      */
     function getDeposit(uint64 depositID) external view returns (Deposit memory);
+
+    /**
+      @notice Computes the amount of fixed-rate interest (before fees) that
+              will be given to a deposit of `depositAmount` stablecoins that
+              matures in `depositPeriodInSeconds` seconds.
+      @param depositAmount The deposit amount, in stablecoins
+      @param depositPeriodInSeconds The deposit period, in seconds
+      @return interestAmount The amount of fixed-rate interest (before fees)
+   */
+    function calculateInterestAmount(
+        uint256 depositAmount,
+        uint256 depositPeriodInSeconds
+    ) external returns (uint256 interestAmount);
 }
 
 // xMPH.sol
@@ -163,9 +181,20 @@ interface IStake is IERC20 {
 }
 
 interface INft {
-    function contractURI() external view returns (string memory);
+    function safeTransferFrom(
+        address from,
+        address to,
+        uint256 tokenId
+    ) external;
 
-    function transferOwnership(address newOwner) external;
+    function safeTransferFrom(
+        address from,
+        address to,
+        uint256 tokenId,
+        bytes memory _data
+    ) external;
+
+    function contractURI() external view returns (string memory);
 
     function setTokenURI(uint256 tokenId, string calldata newURI) external;
 
