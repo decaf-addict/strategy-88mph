@@ -40,7 +40,7 @@ contract Strategy is BaseStrategy, IERC721Receiver {
     uint public unstakePercentage;
     uint constant basisMax = 10000;
     IERC20 public reward;
-    uint64 public maturationPeriod = 180 * 24 * 60 * 60;
+    uint64 public maturationPeriod;
     bool internal isOriginal = true;
     uint constant private max = type(uint).max;
     address public oldStrategy;
@@ -88,6 +88,7 @@ contract Strategy is BaseStrategy, IERC721Receiver {
         //        healthCheck = address(0xDDCea799fF1699e98EDF118e0629A974Df7DF012);
         bancorRegistry = IBancorRegistry(_bancorRegistry);
         routerNetwork = bytes32("BancorNetwork");
+                maturationPeriod = 180 * 24 * 60 * 60
 
         // USDT is non ERC20 compliant, can't use normal approve
         want.approve(address(pool), max);
@@ -341,10 +342,6 @@ contract Strategy is BaseStrategy, IERC721Receiver {
         routerNetwork = _network;
     }
 
-    function setMaxSlippage(uint _bips) public onlyVaultManagers {
-
-    }
-
     function vestId() public view returns (uint64 _vestId){
         return vestor.depositIDToVestID(address(pool), depositId);
     }
@@ -357,6 +354,7 @@ contract Strategy is BaseStrategy, IERC721Receiver {
     // only receive nft from oldStrategy otherwise, random nfts will mess up the depositId
     function onERC721Received(address operator, address from, uint256 tokenId, bytes calldata data) external override returns (bytes4){
         if (from == oldStrategy) {
+            // TODO check data
             depositId = uint64(tokenId);
             return IERC721Receiver.onERC721Received.selector;
         }
