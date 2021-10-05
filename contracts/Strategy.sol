@@ -160,10 +160,6 @@ contract Strategy is BaseStrategy, IERC721Receiver {
             _loss = _loss.sub(_profit);
             _profit = 0;
         }
-
-        emit Debug("_debtOutstanding", _debtOutstanding);
-        emit Debug("_profit", _profit);
-        emit Debug("_loss", _loss);
     }
 
     function adjustPosition(uint256 _debtOutstanding) internal override {
@@ -172,23 +168,12 @@ contract Strategy is BaseStrategy, IERC721Receiver {
         _stakeAll();
     }
 
-    function testWithdraw(uint64 id, uint amt, bool matured) public {
-        pool.withdraw(id, amt, matured);
-    }
-
-    function testRollover() public {
-        pool.rolloverDeposit(depositId, uint64(now + maturationPeriod));
-    }
-
     function liquidatePosition(uint256 _amountNeeded) internal override returns (uint256 _liquidatedAmount, uint256 _loss){
         uint256 loose = balanceOfWant();
         if (_amountNeeded > loose) {
             uint toExitAmount = _amountNeeded.sub(loose);
             IDInterest.Deposit memory depositInfo = getDepositInfo();
             uint toExitVirtualAmount = toExitAmount.mul(depositInfo.interestRate.add(1e18)).div(1e18);
-            emit Debug("toExitAmount", toExitAmount);
-            emit Debug("toExitVirtualAmount", toExitVirtualAmount);
-            emit Debug("depositInfo.virtualTokenTotalSupply", depositInfo.virtualTokenTotalSupply);
             pool.withdraw(depositId, hasMatured() ? toExitAmount : toExitVirtualAmount, !hasMatured());
 
             _liquidatedAmount = Math.min(balanceOfWant(), _amountNeeded);
@@ -197,34 +182,13 @@ contract Strategy is BaseStrategy, IERC721Receiver {
             _liquidatedAmount = _amountNeeded;
             _loss = 0;
         }
-        emit Debug("loose", loose);
-        emit Debug("_amountNeeded", _amountNeeded);
-        emit Debug("_liquidatedAmount", _liquidatedAmount);
-        emit Debug("_loss", _loss);
-    }
-
-    function testLP(uint256 _amountNeeded) public returns (uint256 _liquidatedAmount, uint256 _loss){
-        liquidatePosition(_amountNeeded);
-    }
-
-    function testLAP() public {
-        liquidateAllPositions();
-    }
-
-    function testNow() public returns (uint){
-        return now;
     }
 
     function liquidateAllPositions() internal override returns (uint256) {
         IDInterest.Deposit memory depositInfo = getDepositInfo();
         pool.withdraw(depositId, depositInfo.virtualTokenTotalSupply, !(now > depositInfo.maturationTimestamp));
-
-        emit Debug("balanceOfWant()", balanceOfWant());
-
         return balanceOfWant();
     }
-
-    event Debug(string msg, uint value);
 
     function prepareMigration(address _newStrategy) internal override {
         nft.safeTransferFrom(address(this), _newStrategy, depositId, abi.encode(deposit));
@@ -308,7 +272,6 @@ contract Strategy is BaseStrategy, IERC721Receiver {
     // sell mph for want
     function _sell() internal {
         uint toSell = balanceOfReward();
-        emit Debug("toSell", toSell);
         uint decReward = ERC20(address(reward)).decimals();
         uint decWant = ERC20(address(want)).decimals();
         if (toSell > 10 ** (decReward > decWant ? decReward.sub(decWant) : 0)) {

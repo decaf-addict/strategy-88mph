@@ -40,47 +40,47 @@ def keeper(accounts):
 
 @pytest.fixture
 def token():
-    # token_address = "0xdac17f958d2ee523a2206206994597c13d831ec7"  # USDT
+    token_address = "0xdac17f958d2ee523a2206206994597c13d831ec7"  # USDT
     # token_address = "0x6b175474e89094c44da98b954eedeac495271d0f"  # DAI
-    token_address = "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2"  # WETH
+    # token_address = "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2"  # WETH
 
     yield Contract(token_address)
 
 @pytest.fixture
 def token_whale(accounts):
-    # addr = "0xa929022c9107643515f5c777ce9a910f0d1e490c"  # USDT
-    addr = "0x030ba81f1c18d280636f32af80b9aad02cf0854e"  # WETH
+    addr = "0xa929022c9107643515f5c777ce9a910f0d1e490c"  # USDT
+    # addr = "0x030ba81f1c18d280636f32af80b9aad02cf0854e"  # WETH
     yield accounts.at(addr, force=True)
 
 @pytest.fixture
 def pool():
-    # pool = "0xb1b225402b5ec977af8c721f42f21db5518785dc"  # USDT via Aave
-    pool = "0xe344646a7E7985948518AB8755A3565bc9211753"  # WETH via Aave
+    pool = "0xb1b225402b5ec977af8c721f42f21db5518785dc"  # USDT via Aave
+    # pool = "0xe344646a7E7985948518AB8755A3565bc9211753"  # WETH via Aave
     yield pool
 
 @pytest.fixture
 def token2():
-    # token_address = "0xdac17f958d2ee523a2206206994597c13d831ec7"  # USDT
+    token_address = "0xdac17f958d2ee523a2206206994597c13d831ec7"  # USDT
     # token_address = "0x6b175474e89094c44da98b954eedeac495271d0f"  # DAI
-    token_address = "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2"  # WETH
+    # token_address = "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2"  # WETH
 
     yield Contract(token_address)
 
 @pytest.fixture
 def token_whale2(accounts):
-    # addr = "0xa929022c9107643515f5c777ce9a910f0d1e490c"  # USDT
-    addr = "0x030ba81f1c18d280636f32af80b9aad02cf0854e"  # WETH
+    addr = "0xa929022c9107643515f5c777ce9a910f0d1e490c"  # USDT
+    # addr = "0x030ba81f1c18d280636f32af80b9aad02cf0854e"  # WETH
     yield accounts.at(addr, force=True)
 
 @pytest.fixture
 def pool2():
-    # pool = "0xb1b225402b5ec977af8c721f42f21db5518785dc"  # USDT via Aave
-    pool = "0xe344646a7E7985948518AB8755A3565bc9211753"  # WETH via Aave
+    pool = "0xb1b225402b5ec977af8c721f42f21db5518785dc"  # USDT via Aave
+    # pool = "0xe344646a7E7985948518AB8755A3565bc9211753"  # WETH via Aave
     yield pool
 
 @pytest.fixture
 def amount(accounts, token, user, token_whale):
-    amount = 10_000 * 10 ** token.decimals()
+    amount = 10_000_000 * 10 ** token.decimals()
 
     token.transfer(user, amount, {"from": token_whale})
     yield amount
