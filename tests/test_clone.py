@@ -11,8 +11,10 @@ def test_clone(Strategy, strategy, vault, vault2, pool, pool2, stakeToken, banco
 
     transaction = strategy.clone(vault2, strategist, rewards, keeper, pool2, stakeToken, bancorRegistry)
     cloned_strategy = Strategy.at(transaction.return_value)
-    cloned_strategy.setMinWithdraw(1e9, {'from': gov})
-    cloned_strategy.setDust(1e6, {'from': gov})
+
+    cloned_strategy.setMinWithdraw(0, {'from': gov})
+    cloned_strategy.setDust(0, {'from': gov})
+
     with brownie.reverts("Strategy already initialized"):
         cloned_strategy.initialize(vault, strategist, rewards, keeper, pool2, stakeToken, bancorRegistry, {'from': gov})
 
