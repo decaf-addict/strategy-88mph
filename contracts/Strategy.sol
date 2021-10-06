@@ -172,6 +172,11 @@ contract Strategy is BaseStrategy, IERC721Receiver {
     }
 
     function liquidatePosition(uint256 _amountNeeded) internal override returns (uint256 _liquidatedAmount, uint256 _loss){
+        if (estimatedTotalAssets() < _amountNeeded) {
+            _liquidatedAmount = liquidateAllPositions();
+            return (_liquidatedAmount, _amountNeeded.sub(_liquidatedAmount));
+        }
+
         uint256 loose = balanceOfWant();
         if (_amountNeeded > loose) {
             uint toExitAmount = _amountNeeded.sub(loose);
