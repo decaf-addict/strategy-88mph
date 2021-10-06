@@ -34,7 +34,8 @@ def test_operation(
 
 
 def test_emergency_exit(
-        chain, accounts, token, vault, strategy, user, strategist, amount, RELATIVE_APPROX
+        chain, accounts, token, vault, strategy, user, strategist, amount, RELATIVE_APPROX, percentageFeeModel,
+        percentageFeeModelOwner
 ):
     # Deposit to the vault
     token.approve(vault.address, amount, {"from": user})
@@ -43,6 +44,9 @@ def test_emergency_exit(
     strategy.harvest()
     assert pytest.approx(strategy.estimatedTotalAssets(), rel=RELATIVE_APPROX) == amount
 
+    # remove .5% early withdrawal fee
+    percentageFeeModel.overrideEarlyWithdrawFeeForDeposit(strategy.pool(), strategy.depositId(), 0,
+                                                          {'from': percentageFeeModelOwner})
     # set emergency and exit
     strategy.setEmergencyExit()
     chain.sleep(1)
@@ -64,7 +68,7 @@ def test_profitable_harvest(
     assert pytest.approx(strategy.estimatedTotalAssets(), rel=RELATIVE_APPROX) == amount
 
     # rewards vest over time
-    chain.sleep(3600 * 24 * 7)
+    chain.sleep(3600 * 24 * 50)
     strategy.tend()
 
     before_pps = vault.pricePerShare()
@@ -169,7 +173,7 @@ def test_change_debt(
     chain.sleep(6 * 3600)
     chain.mine(1)
     # rounding error
-    assert strategy.estimatedTotalAssets() <= 1
+    assert strategy.estimatedTotalAssets() <= strategy.dust()
 
     pps_4 = vault.pricePerShare()
     assert pps_4 > pps_3

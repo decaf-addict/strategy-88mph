@@ -36,6 +36,8 @@ contract Strategy is BaseStrategy, IERC721Receiver {
     uint64 public depositId;
     uint public fixedRateInterest;
 
+    uint public dust;
+    uint public minWithdraw;
     uint public stakePercentage;
     uint public unstakePercentage;
     uint constant basisMax = 10000;
@@ -88,14 +90,14 @@ contract Strategy is BaseStrategy, IERC721Receiver {
         //        healthCheck = address(0xDDCea799fF1699e98EDF118e0629A974Df7DF012);
         bancorRegistry = IBancorRegistry(_bancorRegistry);
         routerNetwork = bytes32("BancorNetwork");
-                maturationPeriod = 180 * 24 * 60 * 60
-
-        // USDT is non ERC20 compliant, can't use normal approve
-        want.approve(address(pool), max);
-        reward.approve(address(stake), max);
 
         stakePercentage = 2000;
         unstakePercentage = 8000;
+        maturationPeriod = 180 * 24 * 60 * 60;
+
+        want.safeApprove(address(pool), max);
+        reward.approve(address(stake), max);
+    }
     }
 
     event Cloned(address indexed clone);
@@ -175,7 +177,10 @@ contract Strategy is BaseStrategy, IERC721Receiver {
             uint toExitAmount = _amountNeeded.sub(loose);
             IDInterest.Deposit memory depositInfo = getDepositInfo();
             uint toExitVirtualAmount = toExitAmount.mul(depositInfo.interestRate.add(1e18)).div(1e18);
-            pool.withdraw(depositId, hasMatured() ? toExitAmount : toExitVirtualAmount, !hasMatured());
+            uint amt = hasMatured() ? toExitAmount : toExitVirtualAmount;
+            if (amt > minWithdraw) {
+                pool.withdraw(depositId, amt, !hasMatured());
+            }
 
             _liquidatedAmount = Math.min(balanceOfWant(), _amountNeeded);
             _loss = _amountNeeded.sub(_liquidatedAmount);
@@ -187,7 +192,10 @@ contract Strategy is BaseStrategy, IERC721Receiver {
 
     function liquidateAllPositions() internal override returns (uint256) {
         IDInterest.Deposit memory depositInfo = getDepositInfo();
-        pool.withdraw(depositId, depositInfo.virtualTokenTotalSupply, !(now > depositInfo.maturationTimestamp));
+        uint toExit = depositInfo.virtualTokenTotalSupply;
+        if (toExit > dust && toExit.sub(dust) > minWithdraw) {
+            pool.withdraw(depositId, toExit.sub(dust), !(now > depositInfo.maturationTimestamp));
+        }
         return balanceOfWant();
     }
 
@@ -265,7 +273,9 @@ contract Strategy is BaseStrategy, IERC721Receiver {
                 uint toExitAmount = eta.sub(debt);
                 IDInterest.Deposit memory depositInfo = getDepositInfo();
                 uint toExitVirtualAmount = toExitAmount.mul(depositInfo.interestRate.add(1e18)).div(1e18);
-                pool.withdraw(depositId, toExitVirtualAmount, !hasMatured());
+                if (toExitVirtualAmount > minWithdraw) {
+                    pool.withdraw(depositId, toExitVirtualAmount, !hasMatured());
+                }
             }
         }
     }
@@ -287,7 +297,7 @@ contract Strategy is BaseStrategy, IERC721Receiver {
             if (isWeth) {
                 router.convert(paths, toSell, 1);
                 uint eths = address(this).balance;
-                weth.withdraw(eths);
+                weth.deposit{value : eths}();
             } else {
                 router.claimAndConvert(paths, toSell, 1);
             }
@@ -349,6 +359,16 @@ contract Strategy is BaseStrategy, IERC721Receiver {
     // for migration. This acts as a password so random nft drops won't messed up the depositId
     function setOldStrategy(address _oldStrategy) public onlyVaultManagers {
         oldStrategy = _oldStrategy;
+    }
+
+    // Some protocol pools don't allow perfectly full withdrawal. Need to subtract by dust
+    function setDust(uint _dust) public onlyVaultManagers {
+        dust = _dust;
+    }
+
+    // Some protocol pools enforce a minimum amount withdraw, like cTokens w/ different decimal places.
+    function setMinWithdraw(uint _minWithdraw) public onlyVaultManagers {
+        minWithdraw = _minWithdraw;
     }
 
     // only receive nft from oldStrategy otherwise, random nfts will mess up the depositId
