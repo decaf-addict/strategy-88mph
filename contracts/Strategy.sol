@@ -169,7 +169,7 @@ contract Strategy is BaseStrategy, IERC721Receiver {
     }
 
     function liquidatePosition(uint256 _amountNeeded) internal override returns (uint256 _liquidatedAmount, uint256 _loss){
-        if (estimatedTotalAssets() < _amountNeeded) {
+        if (estimatedTotalAssets() <= _amountNeeded) {
             _liquidatedAmount = liquidateAllPositions();
             return (_liquidatedAmount, _amountNeeded.sub(_liquidatedAmount));
         }
@@ -180,8 +180,8 @@ contract Strategy is BaseStrategy, IERC721Receiver {
             IDInterest.Deposit memory depositInfo = getDepositInfo();
             uint toExitVirtualAmount = toExitAmount.mul(depositInfo.interestRate.add(1e18)).div(1e18);
             uint amt = hasMatured() ? toExitAmount : toExitVirtualAmount;
-            if (amt > minWithdraw) {
-                pool.withdraw(depositId, amt, !hasMatured());
+            if (amt > dust && amt.sub(dust) > minWithdraw) {
+                pool.withdraw(depositId, amt.sub(dust), !hasMatured());
             }
 
             _liquidatedAmount = Math.min(balanceOfWant(), _amountNeeded);
@@ -276,8 +276,8 @@ contract Strategy is BaseStrategy, IERC721Receiver {
                 uint toExitAmount = eta.sub(debt);
                 IDInterest.Deposit memory depositInfo = getDepositInfo();
                 uint toExitVirtualAmount = toExitAmount.mul(depositInfo.interestRate.add(1e18)).div(1e18);
-                if (toExitVirtualAmount > minWithdraw) {
-                    pool.withdraw(depositId, toExitVirtualAmount, !hasMatured());
+                if (toExitVirtualAmount > dust && toExitVirtualAmount.sub(dust) > minWithdraw) {
+                    pool.withdraw(depositId, toExitVirtualAmount.sub(dust), !hasMatured());
                 }
             }
         }

@@ -92,7 +92,8 @@ pools = {
     "USDT": "0xb1b225402b5ec977af8c721f42f21db5518785dc",  # USDT via Aave
     "WETH": "0xaE5ddE7EA5c44b38c0bCcfb985c40006ED744EA6",  # WETH via Aave
     "WBTC": "0xA0E78812E9cD3E754a83bbd74A3F1579b50436E8",  # WBTC via Compound
-    "DAI": "0x4B4626c1265d22B71ded11920795A3c6127A0559",  # DAI via BProtocol
+    # "DAI": "0x4B4626c1265d22B71ded11920795A3c6127A0559",  # DAI via BProtocol
+    "DAI": "0x6D97eA6e14D35e10b50df9475e9EFaAd1982065E",  # DAI via Aave
     "USDC": "0xF61681b8Cbf87615F30f96F491FA28a2Ff39947a",  # USDC via Cream
     "LINK": "0x572be575d1aa1ca84d8ac4274067f7bcb578a368",  # LINK via Compound
 }
@@ -108,7 +109,7 @@ amounts = {
     "USDT": 10_000_000,  # USDT via Aave
     "WETH": 10_000,  # WETH via Aave
     "WBTC": 1_000,  # WBTC via Compound
-    "DAI": 10_000_000,  # DAI via BProtocol
+    "DAI": 10_000_000,  # DAI via BProtocol/Aave
     "USDC": 10_000_000,  # USDC via Cream
     "LINK": 500_000,  # LINK via Compound
 }
@@ -172,9 +173,10 @@ mins = {
     "USDT": [0, 0],  # USDT via Aave
     "WETH": [0, 0],  # WETH via Aave
     "WBTC": [0, 1e1],  # WBTC via Compound
-    "DAI": [1e10, 1e9],  # DAI via BProtocol
-    "USDC": [0, 0],  # USDC via Cream
-    "LINK": [1e10, 1e9],  # LINK via Compound
+    # "DAI": [1e10, 1e9],  # DAI via BProtocol
+    "DAI": [0, 0],  # DAI via Aave
+    "USDC": [0, 1e2],  # USDC via Cream
+    "LINK": [1e10, 1e6],  # LINK via Compound
 }
 
 
