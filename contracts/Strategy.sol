@@ -13,7 +13,6 @@ import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {Math} from "@openzeppelin/contracts/math/Math.sol";
 
-// Import interfaces for many popular DeFi projects, or add your own!
 import "../interfaces/Mph.sol";
 import "../interfaces/Bancor.sol";
 import "../interfaces/Weth.sol";
@@ -377,17 +376,10 @@ contract Strategy is BaseStrategy, IERC721Receiver {
 
     // only receive nft from oldStrategy otherwise, random nfts will mess up the depositId
     function onERC721Received(address operator, address from, uint256 tokenId, bytes calldata data) external override returns (bytes4){
-        if (from == oldStrategy) {
-            if (keccak256(data) == keccak256(deposit)) {
-                depositId = uint64(tokenId);
-                return IERC721Receiver.onERC721Received.selector;
-            } else if (keccak256(data) == keccak256(vest)) {
-                return IERC721Receiver.onERC721Received.selector;
-            }
+        if (from == oldStrategy && keccak256(data) == keccak256(deposit)) {
+            depositId = uint64(tokenId);
         }
-
-        // Must return IERC721Receiver.onERC721Received.selector otherwise nft transfer will revert. Revert any unwanted nfts
-        return 0;
+        return IERC721Receiver.onERC721Received.selector;
     }
 
     receive() external payable {}

@@ -36,8 +36,4 @@ def test_migration(
     )
 
     # harvest to make sure nft ownerships were transferred correctly
-    strategy.harvest()
-
-
-
-
+    new_strategy.harvest()
