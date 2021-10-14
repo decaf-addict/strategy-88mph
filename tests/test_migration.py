@@ -31,10 +31,12 @@ def test_migration(
 
     new_strategy.setOldStrategy(strategy, {'from': gov})
     vault.migrateStrategy(strategy, new_strategy, {"from": gov})
-
     assert (
             pytest.approx(new_strategy.estimatedTotalAssets(), rel=RELATIVE_APPROX) == amount
     )
+
+    # harvest to make sure nft ownerships were transferred correctly
+    strategy.harvest()
 
 
 
