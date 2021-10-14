@@ -18,7 +18,8 @@ def test_migration(
         RELATIVE_APPROX,
         pool,
         stakeToken,
-        bancorRegistry):
+        bancorRegistry,
+        min):
     # Deposit to the vault and harvest
     token.approve(vault.address, amount, {"from": user})
     vault.deposit(amount, {"from": user})
@@ -30,7 +31,10 @@ def test_migration(
     new_strategy = strategist.deploy(Strategy, vault, pool, stakeToken, bancorRegistry)
 
     new_strategy.setOldStrategy(strategy, {'from': gov})
+    new_strategy.setMinWithdraw(min[0], {'from': gov})
+    new_strategy.setDust(min[1], {'from': gov})
     vault.migrateStrategy(strategy, new_strategy, {"from": gov})
+
     assert (
             pytest.approx(new_strategy.estimatedTotalAssets(), rel=RELATIVE_APPROX) == amount
     )
