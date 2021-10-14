@@ -78,7 +78,7 @@ whale_address = {
     "WBTC": "0xccf4429db6322d5c611ee964527d42e5d685dd6a",
     "DAI": "0x5d3a536E4D6DbD6114cc1Ead35777bAB948E3643",
     "USDC": "0x0A59649758aa4d66E25f08Dd01271e891fe52199",
-    "LINK": "0x514910771AF9Ca656af840dff83E8264EcF986CA",
+    "LINK": "0x98C63b7B319dFBDF3d811530F2ab9DfE4983Af9D",
 }
 
 
@@ -131,6 +131,7 @@ token2_address = {
     "LINK": "0x514910771AF9Ca656af840dff83E8264EcF986CA",
 }
 
+# map for testing clones. I.e. Original: GUSD -> Cloned: USDT
 token_to_token2 = {
     "GUSD": "USDT",
     "USDT": "WETH",
@@ -147,53 +148,44 @@ def token2(token):
     yield Contract(token2_address[token_to_token2[token.symbol()]])
 
 
-whale2_address = {
-    "GUSD": "0x5f65f7b609678448494De4C87521CdF6cEf1e932",
-    "USDT": "0xa929022c9107643515f5c777ce9a910f0d1e490c",
-    "WETH": "0x030ba81f1c18d280636f32af80b9aad02cf0854e",
-    "WBTC": "0xccf4429db6322d5c611ee964527d42e5d685dd6a",
-    "DAI": "0x5d3a536E4D6DbD6114cc1Ead35777bAB948E3643",
-    "USDC": "0x0A59649758aa4d66E25f08Dd01271e891fe52199",
-    "LINK": "0x514910771AF9Ca656af840dff83E8264EcF986CA",
-}
-
-
 @pytest.fixture(scope="session", autouse=True)
 def token2_whale(accounts, token2):
-    yield accounts.at(whale2_address[token2.symbol()], force=True)
-
-
-pools2 = {
-    "GUSD": "0xbFDB51ec0ADc6D5bF2ebBA54248D40f81796E12B",  # GUSD via Aave
-    "USDT": "0xb1b225402b5ec977af8c721f42f21db5518785dc",  # USDT via Aave
-    "WETH": "0xaE5ddE7EA5c44b38c0bCcfb985c40006ED744EA6",  # WETH via Aave
-    "WBTC": "0xA0E78812E9cD3E754a83bbd74A3F1579b50436E8",  # WBTC via Compound
-    "DAI": "0x4B4626c1265d22B71ded11920795A3c6127A0559",  # DAI via BProtocol
-    "USDC": "0xF61681b8Cbf87615F30f96F491FA28a2Ff39947a",  # USDC via Cream
-    "LINK": "0x572be575d1aa1ca84d8ac4274067f7bcb578a368",  # LINK via Compound
-}
+    yield accounts.at(whale_address[token2.symbol()], force=True)
 
 
 @pytest.fixture(scope="session", autouse=True)
 def pool2(token2):
-    yield pools2[token2.symbol()]
+    yield pools[token2.symbol()]
 
-
-amounts2 = {
-    "GUSD": 10_000_000,  # GUSD via Aave
-    "USDT": 10_000_000,  # USDT via Aave
-    "WETH": 10_000,  # WETH via Aave
-    "WBTC": 1_000,  # WBTC via Compound
-    "DAI": 10_000_000,  # DAI via BProtocol
-    "USDC": 10_000_000,  # USDC via Cream
-    "LINK": 500_000, # LINK via Compound
-}
 
 @pytest.fixture(scope="function", autouse=True)
 def amount2(accounts, token2, user, token2_whale):
-    amount = amounts2[token2.symbol()] * 10 ** token2.decimals()
+    amount = amounts[token2.symbol()] * 10 ** token2.decimals()
     token2.transfer(user, amount, {"from": token2_whale})
     yield amount
+
+
+# some protocols like compound have a minimum withdrawal amount due to difference in decimals (cDAI is 8 decimals)
+# 1e10 comes from DAI dec 1e18 - cDAI decimal 1e8 -> need a minimum of 1e10 DAI in order to swap out cDAI > 0
+mins = {
+    "GUSD": [0, 0],  # GUSD via Aave
+    "USDT": [0, 0],  # USDT via Aave
+    "WETH": [0, 0],  # WETH via Aave
+    "WBTC": [0, 1e1],  # WBTC via Compound
+    "DAI": [1e10, 1e9],  # DAI via BProtocol
+    "USDC": [0, 0],  # USDC via Cream
+    "LINK": [1e10, 1e9],  # LINK via Compound
+}
+
+
+@pytest.fixture(scope="session", autouse=True)
+def min(token):
+    yield mins[token.symbol()]
+
+
+@pytest.fixture(scope="session", autouse=True)
+def min2(token2):
+    yield mins[token2.symbol()]
 
 
 @pytest.fixture
@@ -252,11 +244,11 @@ def percentageFeeModel():
 
 
 @pytest.fixture
-def strategy(strategist, keeper, vault, Strategy, gov, pool, stakeToken, bancorRegistry):
+def strategy(strategist, keeper, vault, Strategy, gov, pool, stakeToken, bancorRegistry, min):
     strategy = strategist.deploy(Strategy, vault, pool, stakeToken, bancorRegistry)
     strategy.setKeeper(keeper)
-    strategy.setMinWithdraw(0, {'from': gov})
-    strategy.setDust(0, {'from': gov})
+    strategy.setMinWithdraw(min[0], {'from': gov})
+    strategy.setDust(min[1], {'from': gov})
     vault.addStrategy(strategy, 10_000, 0, 2 ** 256 - 1, 1_000, {"from": gov})
     yield strategy
 
