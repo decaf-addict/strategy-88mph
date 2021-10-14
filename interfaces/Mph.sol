@@ -14,6 +14,13 @@ interface IVesting {
         uint256 vestAmountPerStablecoinPerSecond;
     }
 
+    function safeTransferFrom(
+        address from,
+        address to,
+        uint256 tokenId,
+        bytes memory _data
+    ) external;
+
     function depositIDToVestID(address _owner, uint64 _depositId) external view returns (uint64 _vestId);
 
     function getVestWithdrawableAmount(uint64 vestID) external view returns (uint256);

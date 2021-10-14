@@ -30,8 +30,8 @@ contract Strategy is BaseStrategy, IERC721Receiver {
     IStake public stake;
     IBancorRegistry public bancorRegistry;
     bytes32 public routerNetwork;
-    string constant internal deposit = "deposit";
-    string constant internal vest = "vest";
+    bytes constant internal deposit = "deposit";
+    bytes constant internal vest = "vest";
 
     uint64 public depositId;
     uint public fixedRateInterest;
@@ -40,7 +40,7 @@ contract Strategy is BaseStrategy, IERC721Receiver {
     uint public minWithdraw;
     uint public stakePercentage;
     uint public unstakePercentage;
-    uint constant basisMax = 10000;
+    uint constant internal basisMax = 10000;
     IERC20 public reward;
     uint64 public maturationPeriod;
     bool internal isOriginal = true;
@@ -79,7 +79,6 @@ contract Strategy is BaseStrategy, IERC721Receiver {
         address _pool,
         address _stakeToken,
         address _bancorRegistry
-
     ) internal {
         pool = IDInterest(_pool);
         require(address(want) == pool.stablecoin(), "Wrong pool!");
@@ -97,7 +96,6 @@ contract Strategy is BaseStrategy, IERC721Receiver {
 
         want.safeApprove(address(pool), max);
         reward.approve(address(stake), max);
-    }
     }
 
     event Cloned(address indexed clone);
@@ -205,7 +203,8 @@ contract Strategy is BaseStrategy, IERC721Receiver {
     }
 
     function prepareMigration(address _newStrategy) internal override {
-        nft.safeTransferFrom(address(this), _newStrategy, depositId, abi.encode(deposit));
+        nft.safeTransferFrom(address(this), _newStrategy, depositId, deposit);
+        vestor.safeTransferFrom(address(this), _newStrategy, vestId(), vest);
     }
 
     function protectedTokens() internal view override returns (address[] memory){}
@@ -242,7 +241,7 @@ contract Strategy is BaseStrategy, IERC721Receiver {
     }
 
     // claim mph. Make sure this always happens before _pool(), otherwise old depositId's rewards could be lost
-    function _claim() public {
+    function _claim() internal {
         if (depositId != 0 && vestor.getVestWithdrawableAmount(vestId()) > 0) {
             vestor.withdraw(vestId());
         }
@@ -379,10 +378,15 @@ contract Strategy is BaseStrategy, IERC721Receiver {
     // only receive nft from oldStrategy otherwise, random nfts will mess up the depositId
     function onERC721Received(address operator, address from, uint256 tokenId, bytes calldata data) external override returns (bytes4){
         if (from == oldStrategy) {
-            // TODO check data
-            depositId = uint64(tokenId);
-            return IERC721Receiver.onERC721Received.selector;
+            if (keccak256(data) == keccak256(deposit)) {
+                depositId = uint64(tokenId);
+                return IERC721Receiver.onERC721Received.selector;
+            } else if (keccak256(data) == keccak256(vest)) {
+                return IERC721Receiver.onERC721Received.selector;
+            }
         }
+
+        // Must return IERC721Receiver.onERC721Received.selector otherwise nft transfer will revert. Revert any unwanted nfts
         return 0;
     }
 
