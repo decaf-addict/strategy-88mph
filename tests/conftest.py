@@ -140,7 +140,7 @@ token_to_token2 = {
     "WBTC": "DAI",
     "DAI": "USDC",
     "USDC": "LINK",
-    "LINK": "GUSD",
+    "LINK": "DAI",
 }
 
 
@@ -174,7 +174,7 @@ mins = {
     "WETH": [0, 0],  # WETH via Aave
     "WBTC": [0, 1e1],  # WBTC via Compound
     # "DAI": [1e10, 1e9],  # DAI via BProtocol
-    "DAI": [0, 0],  # DAI via Aave
+    "DAI": [1e6, 1e6],  # DAI via Aave
     "USDC": [0, 1e2],  # USDC via Cream
     "LINK": [1e10, 1e6],  # LINK via Compound
 }
