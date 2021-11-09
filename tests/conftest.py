@@ -140,7 +140,7 @@ token_to_token2 = {
     "WBTC": "DAI",
     "DAI": "USDC",
     "USDC": "LINK",
-    "LINK": "GUSD",
+    "LINK": "DAI",
 }
 
 
@@ -174,7 +174,7 @@ mins = {
     "WETH": [0, 0],  # WETH via Aave
     "WBTC": [0, 1e1],  # WBTC via Compound
     # "DAI": [1e10, 1e9],  # DAI via BProtocol
-    "DAI": [0, 0],  # DAI via Aave
+    "DAI": [1e6, 1e6],  # DAI via Aave
     "USDC": [0, 1e2],  # USDC via Cream
     "LINK": [1e10, 1e6],  # LINK via Compound
 }
@@ -209,7 +209,7 @@ def stakeToken():
 
 
 @pytest.fixture
-def bancorRegistry():
+def tradeFactory():
     yield Contract("0x52Ae12ABe5D8BD778BD5397F99cA900624CfADD4")
 
 
@@ -246,8 +246,8 @@ def percentageFeeModel():
 
 
 @pytest.fixture
-def strategy(strategist, keeper, vault, Strategy, gov, pool, stakeToken, bancorRegistry, min):
-    strategy = strategist.deploy(Strategy, vault, pool, stakeToken, bancorRegistry)
+def strategy(strategist, keeper, vault, Strategy, gov, pool, stakeToken, tradeFactory, min):
+    strategy = strategist.deploy(Strategy, vault, pool, stakeToken, tradeFactory)
     strategy.setKeeper(keeper)
     strategy.setMinWithdraw(min[0], {'from': gov})
     strategy.setDust(min[1], {'from': gov})
