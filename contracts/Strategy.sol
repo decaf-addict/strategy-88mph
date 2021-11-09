@@ -14,7 +14,6 @@ import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {Math} from "@openzeppelin/contracts/math/Math.sol";
 
 import "../interfaces/Mph.sol";
-import "../interfaces/Weth.sol";
 import "./BaseStrategyWithSwapperEnabled.sol";
 
 contract Strategy is BaseStrategyWithSwapperEnabled, IERC721Receiver {
@@ -22,44 +21,47 @@ contract Strategy is BaseStrategyWithSwapperEnabled, IERC721Receiver {
     using Address for address;
     using SafeMath for uint256;
 
-    // deposit position
+    string internal strategyName;
+    // deposit position nft
     INft public depositNft;
     // primary interface for entering/exiting protocol
     IDInterest public pool;
-    // redeeming mph that vests linearly
+    // nft for redeeming mph that vests linearly
     IVesting public vestNft;
     // instead of dumping mph immediately, stake mph for xMph for more rewards
-    IStake public stake;
+    IStake public staker;
     bytes constant internal deposit = "deposit";
     bytes constant internal vest = "vest";
-
     uint64 public depositId;
+    uint64 public maturationPeriod;
+    address public oldStrategy;
 
+    // For withdraws. Some protocol rounding reverts when withdrawing full amount, so we subtract a little bit from it
     uint public dust;
+    // Decimal precision for withdraws
     uint public minWithdraw;
+
+    // A combination of stake and unstake % can give us a lot of flexibility in terms of sell immediately vs. staking for more rewards
     uint public stakePercentage;
     uint public unstakePercentage;
+
     uint constant internal basisMax = 10000;
     IERC20 public reward;
-    uint64 public maturationPeriod;
     bool internal isOriginal = true;
     uint constant private max = type(uint).max;
-    address public oldStrategy;
 
     // Trade slippage sent to ySwap
     uint public tradeSlippage;
-
-
-    IWETH9 public constant weth = IWETH9(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2);
 
     constructor(
         address _vault,
         address _pool,
         address _stakeToken,
-        address _tradeFactory
+        address _tradeFactory,
+        string memory _strategyName
     )
     public BaseStrategyWithSwapperEnabled(_vault, _tradeFactory) {
-        _initializeStrat(_vault, _pool, _stakeToken, _tradeFactory);
+        _initializeStrat(_vault, _pool, _stakeToken, _tradeFactory, _strategyName);
     }
 
     function initialize(
@@ -69,26 +71,29 @@ contract Strategy is BaseStrategyWithSwapperEnabled, IERC721Receiver {
         address _keeper,
         address _pool,
         address _stakeToken,
-        address _tradeFactory
+        address _tradeFactory,
+        string memory _strategyName
     ) external {
         _initialize(_vault, _strategist, _rewards, _keeper);
-        _initializeStrat(_vault, _pool, _stakeToken, _tradeFactory);
+        _initializeStrat(_vault, _pool, _stakeToken, _tradeFactory, _strategyName);
     }
 
     function _initializeStrat(
         address _vault,
         address _pool,
         address _stakeToken,
-        address _tradeFactory
+        address _tradeFactory,
+        string memory _strategyName
     ) internal {
+        strategyName = _strategyName;
         pool = IDInterest(_pool);
         require(address(want) == pool.stablecoin(), "Wrong pool!");
         vestNft = IVesting(IMphMinter(pool.mphMinter()).vesting02());
         reward = IERC20(vestNft.token());
         depositNft = INft(pool.depositNFT());
-        stake = IStake(_stakeToken);
+        staker = IStake(_stakeToken);
         tradeFactory = _tradeFactory;
-        //        healthCheck = address(0xDDCea799fF1699e98EDF118e0629A974Df7DF012);
+        healthCheck = address(0xDDCea799fF1699e98EDF118e0629A974Df7DF012);
 
         stakePercentage = 2000;
         unstakePercentage = 8000;
@@ -97,40 +102,14 @@ contract Strategy is BaseStrategyWithSwapperEnabled, IERC721Receiver {
         tradeSlippage = 3_000;
 
         want.safeApprove(address(pool), max);
-        reward.approve(address(stake), max);
+        reward.approve(address(staker), max);
     }
 
-    event Cloned(address indexed clone);
 
-    function clone(
-        address _vault,
-        address _strategist,
-        address _rewards,
-        address _keeper,
-        address _pool,
-        address _stakeToken,
-        address _tradeFactory
-    ) external returns (address payable newStrategy) {
-        require(isOriginal);
-
-        bytes20 addressBytes = bytes20(address(this));
-
-        assembly {
-        // EIP-1167 bytecode
-            let clone_code := mload(0x40)
-            mstore(clone_code, 0x3d602d80600a3d3981f3363d3d373d3d3d363d73000000000000000000000000)
-            mstore(add(clone_code, 0x14), addressBytes)
-            mstore(add(clone_code, 0x28), 0x5af43d82803e903d91602b57fd5bf30000000000000000000000000000000000)
-            newStrategy := create(0, clone_code, 0x37)
-        }
-
-        Strategy(newStrategy).initialize(_vault, _strategist, _rewards, _keeper, _pool, _stakeToken, _tradeFactory);
-        emit Cloned(newStrategy);
-    }
-
+    // VAULT OPERATIONS //
 
     function name() external view override returns (string memory) {
-        return "88-MPH Staker";
+        return strategyName;
     }
 
     // fixed rate interest only unlocks after deposit has matured
@@ -223,6 +202,8 @@ contract Strategy is BaseStrategyWithSwapperEnabled, IERC721Receiver {
         return 0;
     }
 
+    // INTERNAL OPERATIONS //
+
     // pool want. Make sure to claim rewards prior to rollover
     function _pool() internal {
         uint loose = balanceOfWant();
@@ -266,10 +247,10 @@ contract Strategy is BaseStrategyWithSwapperEnabled, IERC721Receiver {
         uint toUnstake = balanceOfStaked().mul(unstakePercentage).div(basisMax);
 
         if (toStake > 0) {
-            stake.deposit(toStake);
+            staker.deposit(toStake);
         }
         if (toUnstake > 0) {
-            stake.withdraw(toUnstake);
+            staker.withdraw(toUnstake);
         }
     }
 
@@ -277,7 +258,7 @@ contract Strategy is BaseStrategyWithSwapperEnabled, IERC721Receiver {
     function _stakeAll() internal {
         uint toStake = balanceOfReward();
         if (toStake > 0) {
-            stake.deposit(toStake);
+            staker.deposit(toStake);
         }
     }
 
@@ -309,7 +290,6 @@ contract Strategy is BaseStrategyWithSwapperEnabled, IERC721Receiver {
         }
     }
 
-
     // HELPERS //
 
     function balanceOfWant() public view returns (uint _amount){
@@ -321,7 +301,7 @@ contract Strategy is BaseStrategyWithSwapperEnabled, IERC721Receiver {
     }
 
     function balanceOfStaked() public view returns (uint _amount){
-        return stake.balanceOf(address(this));
+        return staker.balanceOf(address(this));
     }
 
     function getDepositInfo() public view returns (IDInterest.Deposit memory _deposit){

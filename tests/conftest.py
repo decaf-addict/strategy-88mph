@@ -212,7 +212,6 @@ def stakeToken():
 def tradeFactory():
     yield Contract("0x52Ae12ABe5D8BD778BD5397F99cA900624CfADD4")
 
-
 @pytest.fixture(scope="function", autouse=True)
 def vault(pm, gov, rewards, guardian, management, token):
     Vault = pm(config["dependencies"][0]).Vault
@@ -244,16 +243,19 @@ def percentageFeeModelOwner(accounts):
 def percentageFeeModel():
     yield Contract("0x9c2ae492ec3A49c769bABffC9500256749404f8E")
 
+@pytest.fixture
+def strategyFactory(strategist, keeper, vault, StrategyFactory, gov, pool, stakeToken, tradeFactory, min):
+    factory = strategist.deploy(StrategyFactory, vault, pool, stakeToken, tradeFactory, "88MPH <TokenSymbol> via <ProtocolName>")
+    yield factory
 
 @pytest.fixture
-def strategy(strategist, keeper, vault, Strategy, gov, pool, stakeToken, tradeFactory, min):
-    strategy = strategist.deploy(Strategy, vault, pool, stakeToken, tradeFactory)
-    strategy.setKeeper(keeper)
+def strategy(keeper, vault, gov, min, strategyFactory, Strategy):
+    strategy = Strategy.at(strategyFactory.original())
+    strategy.setKeeper(keeper, {'from': gov})
     strategy.setMinWithdraw(min[0], {'from': gov})
     strategy.setDust(min[1], {'from': gov})
     vault.addStrategy(strategy, 10_000, 0, 2 ** 256 - 1, 1_000, {"from": gov})
     yield strategy
-
 
 @pytest.fixture(scope="session")
 def RELATIVE_APPROX():
