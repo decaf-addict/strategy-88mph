@@ -18,7 +18,6 @@ def test_migration(
         user,
         RELATIVE_APPROX,
         pool,
-        stakeToken,
         tradeFactory,
         min,
         strategyFactory):
@@ -30,7 +29,7 @@ def test_migration(
     assert pytest.approx(strategy.estimatedTotalAssets(), rel=RELATIVE_APPROX) == amount
 
     # migrate to a new strategy
-    new_factory = strategist.deploy(StrategyFactory, vault, pool, stakeToken, tradeFactory, "88MPH <TokenSymbol> via <ProtocolName>")
+    new_factory = strategist.deploy(StrategyFactory, vault, pool, tradeFactory, "88MPH <TokenSymbol> via <ProtocolName>")
     new_strategy = Strategy.at(new_factory.original())
 
     new_strategy.setOldStrategy(strategy, {'from': gov})

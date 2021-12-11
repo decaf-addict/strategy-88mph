@@ -5,7 +5,7 @@ import pytest
 
 def test_operation(
         chain, accounts, token, vault, strategy, user, strategist, amount, RELATIVE_APPROX, percentageFeeModel,
-        percentageFeeModelOwner
+        percentageFeeModelOwner, gov
 ):
     # Deposit to the vault
     user_balance_before = token.balanceOf(user)
@@ -15,7 +15,7 @@ def test_operation(
 
     # harvest
     chain.sleep(1)
-    strategy.harvest()
+    strategy.harvest({"from": gov})
     assert pytest.approx(strategy.estimatedTotalAssets(), rel=RELATIVE_APPROX) == amount
 
     # remove .5% early withdrawal fee
@@ -23,7 +23,7 @@ def test_operation(
                                                           {'from': percentageFeeModelOwner})
 
     # tend()
-    strategy.tend()
+    strategy.tend({"from": gov})
 
     chain.sleep(7 * 24 * 60 * 60)
     chain.mine(1)
@@ -35,22 +35,22 @@ def test_operation(
 
 def test_emergency_exit(
         chain, accounts, token, vault, strategy, user, strategist, amount, RELATIVE_APPROX, percentageFeeModel,
-        percentageFeeModelOwner
+        percentageFeeModelOwner, gov
 ):
     # Deposit to the vault
     token.approve(vault.address, amount, {"from": user})
     vault.deposit(amount, {"from": user})
     chain.sleep(1)
-    strategy.harvest()
+    strategy.harvest({"from": gov})
     assert pytest.approx(strategy.estimatedTotalAssets(), rel=RELATIVE_APPROX) == amount
 
     # remove .5% early withdrawal fee
     percentageFeeModel.overrideEarlyWithdrawFeeForDeposit(strategy.pool(), strategy.depositId(), 0,
                                                           {'from': percentageFeeModelOwner})
     # set emergency and exit
-    strategy.setEmergencyExit()
+    strategy.setEmergencyExit({"from": gov})
     chain.sleep(1)
-    strategy.harvest()
+    strategy.harvest({"from": gov})
     assert strategy.estimatedTotalAssets() < amount
 
 
@@ -96,7 +96,7 @@ def test_matured_harvest(chain, accounts, token, vault, strategy, user, strategi
 
     # Harvest 1: Send funds through the strategy
     chain.sleep(1)
-    strategy.harvest()
+    strategy.harvest({"from": gov})
     assert pytest.approx(strategy.estimatedTotalAssets(), rel=RELATIVE_APPROX) == amount
 
     # half a year to mature deposit
@@ -110,10 +110,10 @@ def test_matured_harvest(chain, accounts, token, vault, strategy, user, strategi
 
     before_pps = vault.pricePerShare()
     # tend rolls over current to new deposit to continue new vest
-    strategy.tend()
+    strategy.tend({"from": gov})
 
     # harvest collects the interest
-    strategy.harvest()
+    strategy.harvest({"from": gov})
     chain.sleep(3600 * 6)  # 6 hrs needed for profits to unlock
     chain.mine(1)
     profit = token.balanceOf(vault.address)  # Profits go to vault
@@ -135,12 +135,12 @@ def test_change_debt(
     vault.deposit(amount, {"from": user})
     vault.updateStrategyDebtRatio(strategy.address, 5_000, {"from": gov})
     chain.sleep(1)
-    strategy.harvest()
+    strategy.harvest({"from": gov})
     half = int(amount / 2)
     assert pytest.approx(strategy.estimatedTotalAssets(), rel=RELATIVE_APPROX) == half
 
     chain.sleep(6 * 3600)
-    strategy.harvest()
+    strategy.harvest({"from": gov})
 
     # remove .5% early withdrawal fee
     percentageFeeModel.overrideEarlyWithdrawFeeForDeposit(strategy.pool(), strategy.depositId(), 0,
@@ -149,7 +149,7 @@ def test_change_debt(
 
     vault.updateStrategyDebtRatio(strategy.address, 10_000, {"from": gov})
     chain.sleep(3600)
-    strategy.harvest()
+    strategy.harvest({"from": gov})
     chain.sleep(6 * 3600)
     chain.mine(1)
     assert strategy.estimatedTotalAssets() >= amount
@@ -159,7 +159,7 @@ def test_change_debt(
 
     vault.updateStrategyDebtRatio(strategy.address, 5_000, {"from": gov})
     chain.sleep(3600)
-    strategy.harvest()
+    strategy.harvest({"from": gov})
     chain.sleep(6 * 3600)
     chain.mine(1)
     assert strategy.estimatedTotalAssets() >= half
@@ -169,7 +169,7 @@ def test_change_debt(
 
     vault.updateStrategyDebtRatio(strategy.address, 0, {"from": gov})
     chain.sleep(3600)
-    strategy.harvest()
+    strategy.harvest({"from": gov})
     chain.sleep(6 * 3600)
     chain.mine(1)
     # compounding dusts and rounding errors + 5
@@ -179,7 +179,7 @@ def test_change_debt(
     assert pps_4 > pps_3
 
 
-def test_sweep(gov, vault, strategy, token, user, amount, weth, weth_amout):
+def test_sweep(gov, vault, strategy, token, user, amount, wftm, wftm_amount):
     # Strategy want token doesn't work
     token.transfer(strategy, amount, {"from": user})
     assert token.address == strategy.want()
@@ -207,14 +207,14 @@ def test_sweep(gov, vault, strategy, token, user, amount, weth, weth_amout):
 
 
 def test_triggers(
-        chain, gov, vault, strategy, token, amount, user, weth, weth_amout, strategist
+        chain, gov, vault, strategy, token, amount, user, wftm, wftm_amount, strategist
 ):
     # Deposit to the vault and harvest
     token.approve(vault.address, amount, {"from": user})
     vault.deposit(amount, {"from": user})
     vault.updateStrategyDebtRatio(strategy.address, 5_000, {"from": gov})
     chain.sleep(1)
-    strategy.harvest()
+    strategy.harvest({"from": gov})
 
     strategy.harvestTrigger(0)
     strategy.tendTrigger(0)
