@@ -1,6 +1,7 @@
 import brownie
 from brownie import Contract
 import pytest
+import util
 
 
 def test_operation(
@@ -55,7 +56,8 @@ def test_emergency_exit(
 
 
 def test_profitable_harvest(
-        chain, accounts, token, vault, strategy, user, strategist, amount, RELATIVE_APPROX, gov
+        chain, accounts, token, vault, strategy, user, strategist, amount, mech, swapper, RELATIVE_APPROX, gov,
+        tradeFactory
 ):
     # Deposit to the vault
     token.approve(vault.address, amount, {"from": user})
@@ -68,13 +70,15 @@ def test_profitable_harvest(
     assert pytest.approx(strategy.estimatedTotalAssets(), rel=RELATIVE_APPROX) == amount
 
     # rewards vest over time
-    chain.sleep(3600 * 24 * 50)
+    chain.sleep(360)
     strategy.tend({"from": gov})
 
     before_pps = vault.pricePerShare()
 
     # Harvest 2: Realize profit
     chain.sleep(1)
+    strategy.harvest({"from": gov})
+    util.yswap_execute(tradeFactory, strategy, strategy.reward(), strategy.want(), swapper, mech)
     strategy.harvest({"from": gov})
     chain.sleep(3600 * 6)  # 6 hrs needed for profits to unlock
     chain.mine(1)
@@ -90,10 +94,6 @@ def test_matured_harvest(chain, accounts, token, vault, strategy, user, strategi
     vault.deposit(amount, {"from": user})
     assert token.balanceOf(vault.address) == amount
 
-    # turn off selling of rewards so that we isolate gains from collecting fixed-interest
-    strategy.setStakePercentage(10000, {'from': gov})
-    strategy.setUnstakePercentage(0, {'from': gov})
-
     # Harvest 1: Send funds through the strategy
     chain.sleep(1)
     strategy.harvest({"from": gov})
@@ -107,13 +107,11 @@ def test_matured_harvest(chain, accounts, token, vault, strategy, user, strategi
     old_vest_id = strategy.vestId()
 
     assert strategy.hasMatured() == True
-
     before_pps = vault.pricePerShare()
-    # tend rolls over current to new deposit to continue new vest
-    strategy.tend({"from": gov})
-
+    before_id = strategy.depositId()
     # harvest collects the interest
     strategy.harvest({"from": gov})
+    assert strategy.depositId() != before_id
     chain.sleep(3600 * 6)  # 6 hrs needed for profits to unlock
     chain.mine(1)
     profit = token.balanceOf(vault.address)  # Profits go to vault
@@ -128,7 +126,7 @@ def test_matured_harvest(chain, accounts, token, vault, strategy, user, strategi
 
 def test_change_debt(
         chain, gov, token, vault, strategy, user, strategist, amount, RELATIVE_APPROX,
-        percentageFeeModel, percentageFeeModelOwner
+        percentageFeeModel, percentageFeeModelOwner, tradeFactory, swapper, mech
 ):
     # Deposit to the vault and harvest
     token.approve(vault.address, amount, {"from": user})
@@ -136,7 +134,7 @@ def test_change_debt(
     vault.updateStrategyDebtRatio(strategy.address, 5_000, {"from": gov})
     chain.sleep(1)
     strategy.harvest({"from": gov})
-    half = int(amount / 2)
+    half = amount / 2
     assert pytest.approx(strategy.estimatedTotalAssets(), rel=RELATIVE_APPROX) == half
 
     chain.sleep(6 * 3600)
@@ -145,28 +143,25 @@ def test_change_debt(
     # remove .5% early withdrawal fee
     percentageFeeModel.overrideEarlyWithdrawFeeForDeposit(strategy.pool(), strategy.depositId(), 0,
                                                           {'from': percentageFeeModelOwner})
-    pps_1 = vault.pricePerShare()
-
     vault.updateStrategyDebtRatio(strategy.address, 10_000, {"from": gov})
     chain.sleep(3600)
     strategy.harvest({"from": gov})
+
     chain.sleep(6 * 3600)
     chain.mine(1)
     assert strategy.estimatedTotalAssets() >= amount
 
-    pps_2 = vault.pricePerShare()
-    assert pps_2 > pps_1
-
     vault.updateStrategyDebtRatio(strategy.address, 5_000, {"from": gov})
     chain.sleep(3600)
     strategy.harvest({"from": gov})
+    util.yswap_execute(tradeFactory, strategy, strategy.reward(), strategy.want(), swapper, mech)
+    strategy.harvest({"from": gov})
+
     chain.sleep(6 * 3600)
     chain.mine(1)
     assert strategy.estimatedTotalAssets() >= half
 
-    pps_3 = vault.pricePerShare()
-    assert pps_3 > pps_2
-
+    before_pps = vault.pricePerShare()
     vault.updateStrategyDebtRatio(strategy.address, 0, {"from": gov})
     chain.sleep(3600)
     strategy.harvest({"from": gov})
@@ -175,8 +170,8 @@ def test_change_debt(
     # compounding dusts and rounding errors + 5
     assert strategy.estimatedTotalAssets() <= strategy.dust() * 10 + 5
 
-    pps_4 = vault.pricePerShare()
-    assert pps_4 > pps_3
+    after_pps = vault.pricePerShare()
+    assert after_pps > before_pps
 
 
 def test_sweep(gov, vault, strategy, token, user, amount, wftm, wftm_amount):

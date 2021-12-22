@@ -6,7 +6,7 @@ import pytest
 
 
 def test_vault_shutdown_can_withdraw(
-    chain, token, vault, strategy, user, amount, RELATIVE_APPROX, percentageFeeModelOwner, percentageFeeModel
+    chain, token, vault, strategy, user, amount, RELATIVE_APPROX, percentageFeeModelOwner, percentageFeeModel, gov
 ):
     ## Deposit in Vault
     token.approve(vault.address, amount, {"from": user})
@@ -17,7 +17,7 @@ def test_vault_shutdown_can_withdraw(
     #     token.transfer(ZERO_ADDRESS, token.balanceOf(user), {"from": user})
 
     # Harvest 1: Send funds through the strategy
-    strategy.harvest()
+    strategy.harvest({"from": gov})
     chain.sleep(3600 * 7)
     chain.mine(1)
     assert pytest.approx(strategy.estimatedTotalAssets(), rel=RELATIVE_APPROX) == amount
@@ -35,7 +35,7 @@ def test_vault_shutdown_can_withdraw(
 
 
 def test_basic_shutdown(
-    chain, token, vault, strategy, user, strategist, amount, RELATIVE_APPROX, percentageFeeModelOwner, percentageFeeModel
+    chain, token, vault, strategy, user, strategist, amount, RELATIVE_APPROX, percentageFeeModelOwner, percentageFeeModel, gov
 ):
     # Deposit to the vault
     token.approve(vault.address, amount, {"from": user})
@@ -43,7 +43,7 @@ def test_basic_shutdown(
     assert token.balanceOf(vault.address) == amount
 
     # Harvest 1: Send funds through the strategy
-    strategy.harvest()
+    strategy.harvest({"from": gov})
     chain.mine(100)
     assert pytest.approx(strategy.estimatedTotalAssets(), rel=RELATIVE_APPROX) == amount
 
@@ -56,15 +56,15 @@ def test_basic_shutdown(
     chain.mine(1)
 
     # Harvest 2: Realize profit
-    strategy.harvest()
+    strategy.harvest({"from": gov})
     chain.sleep(3600 * 6)  # 6 hrs needed for profits to unlock
     chain.mine(1)
 
     ## Set emergency
     strategy.setEmergencyExit({"from": strategist})
 
-    strategy.harvest()  ## Remove funds from strategy
+    strategy.harvest({"from": gov})  ## Remove funds from strategy
 
     assert token.balanceOf(strategy) == 0
-    assert token.balanceOf(vault) >= amount  ## The vault has all funds
+    assert token.balanceOf(vault) >= amount - strategy.dust()  ## The vault has all funds
     ## NOTE: May want to tweak this based on potential loss during migration

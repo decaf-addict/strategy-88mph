@@ -108,6 +108,7 @@ token_to_token2 = {
     "USDC": "WFTM",
 }
 
+
 @pytest.fixture(scope="session", autouse=True)
 def token2(token):
     yield Contract(token_address[token_to_token2[token.symbol()]])
@@ -134,7 +135,7 @@ def amount2(accounts, token2, user, token2_whale):
 # 1e10 comes from DAI dec 1e18 - cDAI decimal 1e8 -> need a minimum of 1e10 DAI in order to swap out cDAI > 0
 mins = {
     "WFTM": [0, 0],  # WFTM via Geist
-    "DAI": [1e6, 1e6],  # DAI via Scream
+    "DAI": [1e8, 1e8],  # DAI via Scream
     "USDC": [0, 1e2],  # USDC via Scream
 }
 
@@ -156,9 +157,14 @@ def wftm():
 
 
 @pytest.fixture
-def wftm_amount(user, wftm):
+def wftm_whale(accounts):
+    yield accounts.at("0x39b3bd37208cbade74d0fcbdbb12d606295b430a", force=True)
+
+
+@pytest.fixture
+def wftm_amount(user, wftm, wftm_whale):
     wftm_amount = 10 ** wftm.decimals()
-    user.transfer(wftm, wftm_amount)
+    wftm.transfer(user, wftm_amount, {'from': wftm_whale})
     yield wftm_amount
 
 
@@ -212,12 +218,31 @@ def strategyFactory(strategist, keeper, vault, StrategyFactory, gov, pool, trade
 
 
 @pytest.fixture
-def strategy(keeper, vault, gov, min, strategyFactory, Strategy):
+def yMechs():
+    yield Contract("0x9f2A061d6fEF20ad3A656e23fd9C814b75fd5803")
+
+
+@pytest.fixture
+def mech(accounts):
+    yield accounts.at("0x0000000031669Ab4083265E0850030fa8dEc8daf", force=True)
+
+
+@pytest.fixture
+def swapper(tradeFactory, yMechs):
+    # async spooky
+    swapper = Contract("0x8298C9a1760346C474c570881B1F6E56ECA038B7")
+    tradeFactory.addSwappers([swapper], {"from": yMechs})
+    yield swapper
+
+
+@pytest.fixture
+def strategy(keeper, vault, gov, min, strategyFactory, Strategy, tradeFactory, yMechs):
     strategy = Strategy.at(strategyFactory.original())
     strategy.setKeeper(keeper, {'from': gov})
     strategy.setMinWithdraw(min[0], {'from': gov})
     strategy.setDust(min[1], {'from': gov})
     vault.addStrategy(strategy, 10_000, 0, 2 ** 256 - 1, 1_000, {"from": gov})
+    tradeFactory.grantRole(tradeFactory.STRATEGY(), strategy, {"from": yMechs, "gas_price": "0 gwei"})
     yield strategy
 
 

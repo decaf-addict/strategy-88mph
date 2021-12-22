@@ -14,9 +14,9 @@ import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {Math} from "@openzeppelin/contracts/math/Math.sol";
 
 import "../interfaces/Mph.sol";
-import "./BaseStrategyWithSwapperEnabled.sol";
+import "./ySwap/SwapperEnabled.sol";
 
-contract Strategy is BaseStrategyWithSwapperEnabled, IERC721Receiver {
+contract Strategy is BaseStrategy, SwapperEnabled, IERC721Receiver {
     using SafeERC20 for IERC20;
     using Address for address;
     using SafeMath for uint256;
@@ -34,18 +34,17 @@ contract Strategy is BaseStrategyWithSwapperEnabled, IERC721Receiver {
     uint64 public maturationPeriod;
     address public oldStrategy;
 
+
     // For withdraws. Some protocol rounding reverts when withdrawing full amount, so we subtract a little bit from it
     uint public dust;
     // Decimal precision for withdraws
     uint public minWithdraw;
+    bool public automate;
 
     uint constant internal basisMax = 10000;
     IERC20 public reward;
     bool internal isOriginal = true;
     uint constant private max = type(uint).max;
-
-    // Trade slippage sent to ySwap
-    uint public tradeSlippage;
 
     constructor(
         address _vault,
@@ -53,7 +52,7 @@ contract Strategy is BaseStrategyWithSwapperEnabled, IERC721Receiver {
         address _tradeFactory,
         string memory _strategyName
     )
-    public BaseStrategyWithSwapperEnabled(_vault, _tradeFactory) {
+    public BaseStrategy(_vault) SwapperEnabled(_tradeFactory) {
         _initializeStrat(_vault, _pool, _tradeFactory, _strategyName);
     }
 
@@ -85,49 +84,49 @@ contract Strategy is BaseStrategyWithSwapperEnabled, IERC721Receiver {
         tradeFactory = _tradeFactory;
         healthCheck = address(0xf13Cd6887C62B5beC145e30c38c4938c5E627fe0);
 
-        maturationPeriod = 180 * 24 * 60 * 60;
-        // we usually do 3k which is 0.3%
-        tradeSlippage = 3_000;
+        maturationPeriod = 5 * 24 * 60 * 60;
 
         want.safeApprove(address(pool), max);
+        _setTradeFactory(_tradeFactory);
+        automate = true;
     }
 
 
     // VAULT OPERATIONS //
-
     function name() external view override returns (string memory) {
         return strategyName;
     }
 
     // fixed rate interest only unlocks after deposit has matured
     function estimatedTotalAssets() public view override returns (uint256) {
-        uint depositWithInterest = getDepositInfo().virtualTokenTotalSupply;
-        uint interestRate = getDepositInfo().interestRate;
-        uint wants = balanceOfWant();
-        // virtualTokenTotalSupply = deposit + fixed-rate interest. Before maturation, the fixed-rate interest is not withdrawable
-        return wants.add(hasMatured() ? depositWithInterest : depositWithInterest.mul(1e18).div(interestRate.add(1e18)));
+        return balanceOfWant().add(balanceOfPooled());
     }
 
-    event Debug(string msg, uint value);
-
     function prepareReturn(uint256 _debtOutstanding) internal override returns (uint256 _profit, uint256 _loss, uint256 _debtPayment){
-        if (_debtOutstanding > 0) {
-            (_debtPayment, _loss) = liquidatePosition(_debtOutstanding);
+        if (automate) {
+            if (hasMatured()) {
+                // Free up everything. Whatever's not collected as profit will be pooled back to start the next epoch
+                liquidateAllPositions();
+            }
+            _claim();
+            _sell();
         }
 
-        // collect fixed-rate apy if matured
-        _profit = _collect();
-        emit Debug("after collect", _profit);
-        uint256 beforeWant = balanceOfWant();
-        _claim();
-        emit Debug("after claim", _profit);
-        _sell();
-        emit Debug("after sell", _profit);
+        uint256 totalDebt = vault.strategies(address(this)).totalDebt;
+        uint256 totalAssets = estimatedTotalAssets();
+        if (totalAssets >= totalDebt) {
+            _profit += totalAssets.sub(totalDebt);
+        } else {
+            _loss += totalDebt.sub(totalAssets);
+        }
 
-        uint256 afterWant = balanceOfWant();
+        (uint freed, uint short) = liquidatePosition(_debtOutstanding.add(_profit));
+        _profit = Math.min(_profit, freed);
+        _debtPayment = freed.sub(_profit);
+        _loss += short;
 
-        _profit += afterWant.sub(beforeWant);
 
+        // net out PnL
         if (_profit > _loss) {
             _profit = _profit.sub(_loss);
             _loss = 0;
@@ -135,34 +134,41 @@ contract Strategy is BaseStrategyWithSwapperEnabled, IERC721Receiver {
             _loss = _loss.sub(_profit);
             _profit = 0;
         }
+
+        if (automate && hasMatured()) {
+            depositId = 0;
+        }
     }
 
     // claim vested mph, pool loose wants
     function adjustPosition(uint256 _debtOutstanding) internal override {
         _claim();
         _pool();
+
     }
 
     function liquidatePosition(uint256 _amountNeeded) internal override returns (uint256 _liquidatedAmount, uint256 _loss){
-        if (estimatedTotalAssets() <= _amountNeeded) {
-            _liquidatedAmount = liquidateAllPositions();
-            return (_liquidatedAmount, _amountNeeded.sub(_liquidatedAmount));
-        }
+        if (_amountNeeded > 0) {
+            if (estimatedTotalAssets() <= _amountNeeded) {
+                _liquidatedAmount = liquidateAllPositions();
+                return (_liquidatedAmount, _amountNeeded.sub(_liquidatedAmount));
+            }
 
-        uint256 loose = balanceOfWant();
-        if (_amountNeeded > loose) {
-            uint toExitAmount = _amountNeeded.sub(loose);
-            IDInterest.Deposit memory depositInfo = getDepositInfo();
-            uint toExitVirtualAmount = toExitAmount.mul(depositInfo.interestRate.add(1e18)).div(1e18);
-            uint amt = hasMatured() ? toExitAmount : toExitVirtualAmount;
+            uint256 loose = balanceOfWant();
+            if (_amountNeeded > loose) {
+                uint toExitAmount = _amountNeeded.sub(loose);
+                IDInterest.Deposit memory depositInfo = getDepositInfo();
+                uint toExitVirtualAmount = toExitAmount.mul(depositInfo.interestRate.add(1e18)).div(1e18);
+                uint amt = hasMatured() ? toExitAmount : toExitVirtualAmount;
 
-            _poolWithdraw(amt);
+                _poolWithdraw(amt);
 
-            _liquidatedAmount = Math.min(balanceOfWant(), _amountNeeded);
-            _loss = _amountNeeded.sub(_liquidatedAmount);
-        } else {
-            _liquidatedAmount = _amountNeeded;
-            _loss = 0;
+                _liquidatedAmount = Math.min(balanceOfWant(), _amountNeeded);
+                _loss = _amountNeeded.sub(_liquidatedAmount);
+            } else {
+                _liquidatedAmount = _amountNeeded;
+                _loss = 0;
+            }
         }
     }
 
@@ -170,6 +176,9 @@ contract Strategy is BaseStrategyWithSwapperEnabled, IERC721Receiver {
     function liquidateAllPositions() internal override returns (uint256) {
         IDInterest.Deposit memory depositInfo = getDepositInfo();
         uint toExit = depositInfo.virtualTokenTotalSupply;
+        if (!hasMatured()) {
+            toExit *= depositInfo.interestRate.add(1e18).div(1e18);
+        }
         _poolWithdraw(toExit);
         return balanceOfWant();
     }
@@ -188,25 +197,41 @@ contract Strategy is BaseStrategyWithSwapperEnabled, IERC721Receiver {
 
     // INTERNAL OPERATIONS //
 
+    function closeEpoch() external onlyEmergencyAuthorized {
+        _closeEpoch();
+    }
+
+    function _closeEpoch() internal {
+        liquidateAllPositions();
+    }
+
+    function poolWants() external onlyVaultManagers {
+        _pool();
+    }
+
     // pool wants
     function _pool() internal {
         uint loose = balanceOfWant();
 
         // if loose amount is too small to generate interest due to loss of precision, deposits will revert
-        uint interest = pool.calculateInterestAmount(loose, maturationPeriod);
+        uint futureInterest = pool.calculateInterestAmount(loose, maturationPeriod);
 
         if (depositId != 0) {
             // top up the current deposit aka add more loose to the depositNft position
-            if (loose > 0 && interest > 0) {
+            if (loose > 0 && futureInterest > 0) {
                 pool.topupDeposit(depositId, loose);
             }
         } else {
             // if there's no depositId, we haven't opened a position yet
-            if (loose > 0 && interest > 0) {
+            if (loose > 0 && futureInterest > 0) {
                 // open a position with a fixed period. Fixed-rate yield can be collected after this period.
                 (depositId,) = pool.deposit(loose, uint64(now + maturationPeriod));
             }
         }
+    }
+
+    function claim() external onlyVaultManagers {
+        _claim();
     }
 
     // claim mph. Make sure this always happens before _pool(), otherwise old depositId's rewards could be lost
@@ -216,17 +241,28 @@ contract Strategy is BaseStrategyWithSwapperEnabled, IERC721Receiver {
         }
     }
 
+    function collect() external onlyVaultManagers returns (uint _profit)  {
+        return _collect();
+    }
+
     // Fixed rate interest can only be collected once depositNft has matured.
-    // We collect this once matured.
     function _collect() internal returns (uint _profit){
-        if (depositId != 0 && hasMatured()) {
-            liquidateAllPositions();
-            uint balance = balanceOfWant();
-            uint debt = vault.strategies(address(this)).totalDebt;
-            return balance > debt ? balance.sub(debt) : 0;
-        } else {
-            return 0;
+        if (depositId != 0) {
+            if (hasMatured()) {
+                liquidateAllPositions();
+            } else {
+                uint balance = estimatedTotalAssets();
+                uint debt = vault.strategies(address(this)).totalDebt;
+                if (balance > debt) {
+                    (_profit,) = liquidatePosition(balance.sub(debt));
+                }
+            }
         }
+        return _profit;
+    }
+
+    function sell() external onlyVaultManagers {
+        _sell();
     }
 
     // sell mph for want using ySwaps
@@ -234,16 +270,19 @@ contract Strategy is BaseStrategyWithSwapperEnabled, IERC721Receiver {
         uint toSell = balanceOfReward();
         if (toSell > 0) {
             uint256 _tokenAllowance = _tradeFactoryAllowance(address(reward));
-            emit Debug("allowance", _tokenAllowance);
-            emit Debug("toSell", toSell);
             if (toSell > _tokenAllowance) {
-                uint id = _createTrade(address(reward), address(want), toSell - _tokenAllowance, tradeSlippage, block.timestamp + 604800);
-                emit Debug("id", id);
+                uint id = _createTrade(address(reward), address(want), toSell - _tokenAllowance, block.timestamp + 604800);
             }
         }
     }
 
-    // withdraw from pool
+    function poolWithdraw(uint _amount) external onlyVaultManagers {
+        _poolWithdraw(_amount);
+    }
+
+    // withdraw from pool.
+    // Note: Before maturation, amount specified should be multiplied by 1+InterestedRate in order to exit amount
+    // Example: if(hasMatured() == false), to exit 100_000 (5% interest), amount needs to be 105_000. It's dumb I know..
     function _poolWithdraw(uint _amount) internal {
         // ensure that withdraw amount is more than dust and minWithdraw amount, otherwise, some protocols will revert
         if (_amount > dust && _amount.sub(dust) > minWithdraw) {
@@ -251,13 +290,27 @@ contract Strategy is BaseStrategyWithSwapperEnabled, IERC721Receiver {
         }
     }
 
+    function overrideDepositId(uint64 _id) external onlyVaultManagers {
+        depositId = _id;
+    }
+
     // HELPERS //
+
+    // virtualTokenTotalSupply = deposit + fixed-rate interest. Before maturation, the fixed-rate interest is not withdrawable
+    function balanceOfPooled() public view returns (uint _amount){
+        if (depositId != 0) {
+            uint depositWithInterest = getDepositInfo().virtualTokenTotalSupply;
+            uint interestRate = getDepositInfo().interestRate;
+            uint depositWithoutInterest = depositWithInterest.mul(1e18).div(interestRate.add(1e18));
+            return hasMatured() ? depositWithInterest : depositWithoutInterest;
+        }
+    }
 
     function balanceOfWant() public view returns (uint _amount){
         return want.balanceOf(address(this));
     }
 
-    function balanceOfReward() internal returns (uint _amount){
+    function balanceOfReward() public view returns (uint _amount){
         return reward.balanceOf(address(this));
     }
 
@@ -274,7 +327,7 @@ contract Strategy is BaseStrategyWithSwapperEnabled, IERC721Receiver {
     }
 
     function hasMatured() public view returns (bool){
-        return now > getDepositInfo().maturationTimestamp;
+        return depositId != 0 ? now > getDepositInfo().maturationTimestamp : false;
     }
 
     function vestId() public view returns (uint64 _vestId){
@@ -303,8 +356,8 @@ contract Strategy is BaseStrategyWithSwapperEnabled, IERC721Receiver {
         minWithdraw = _minWithdraw;
     }
 
-    function setTradeSlippage(uint256 _tradeSlippage) external onlyAuthorized {
-        tradeSlippage = _tradeSlippage;
+    function setAutomate(bool _automate) public onlyVaultManagers {
+        automate = _automate;
     }
 
     // only receive nft from oldStrategy otherwise, random nfts will mess up the depositId
