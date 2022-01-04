@@ -6,7 +6,7 @@ pragma solidity 0.6.12;
 pragma experimental ABIEncoderV2;
 
 // These are the core Yearn libraries
-import {BaseStrategy, StrategyParams} from "@yearnvaults/contracts/BaseStrategy.sol";
+import {BaseStrategy} from "@yearnvaults/contracts/BaseStrategy.sol";
 import {SafeERC20, SafeMath, IERC20, Address} from "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 import {IERC721Receiver} from "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
 import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
@@ -29,26 +29,24 @@ contract Strategy is BaseStrategy, IERC721Receiver {
     IStake public stake;
     IBancorRegistry public bancorRegistry;
     bytes32 public routerNetwork;
-    bytes constant internal deposit = "deposit";
-    bytes constant internal vest = "vest";
-
     uint64 public depositId;
     uint public fixedRateInterest;
-
     uint public dust;
     uint public minWithdraw;
     uint public stakePercentage;
     uint public unstakePercentage;
-    uint constant internal basisMax = 10000;
+    address public oldStrategy;
     IERC20 public reward;
     uint64 public maturationPeriod;
-    bool internal isOriginal = true;
-    uint constant private max = type(uint).max;
-    address public oldStrategy;
 
-    address public constant usdt = 0xdAC17F958D2ee523a2206206994597C13D831ec7;
-    address public constant eth = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
-    IWETH9 public constant weth = IWETH9(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2);
+    bytes constant internal deposit = "deposit";
+    bytes constant internal vest = "vest";
+    bool internal isOriginal = true;
+    uint constant internal basisMax = 10000;
+    uint constant internal max = type(uint).max;
+    address internal constant usdt = 0xdAC17F958D2ee523a2206206994597C13D831ec7;
+    address internal constant eth = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
+    IWETH9 internal constant weth = IWETH9(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2);
 
     constructor(
         address _vault,
@@ -85,7 +83,8 @@ contract Strategy is BaseStrategy, IERC721Receiver {
         reward = IERC20(vestor.token());
         nft = INft(pool.depositNFT());
         stake = IStake(_stakeToken);
-        //        healthCheck = address(0xDDCea799fF1699e98EDF118e0629A974Df7DF012);
+        // TODO: what's the issue here?
+        // healthCheck = address(0xDDCea799fF1699e98EDF118e0629A974Df7DF012);
         bancorRegistry = IBancorRegistry(_bancorRegistry);
         routerNetwork = bytes32("BancorNetwork");
 
@@ -145,6 +144,8 @@ contract Strategy is BaseStrategy, IERC721Receiver {
 
         uint256 beforeWant = balanceOfWant();
 
+        // I wonder if it makes more sense to leave all these methods external
+        // so they can be called from the sms separately.
         _collect();
         _claim();
         _consolidate();
@@ -163,7 +164,7 @@ contract Strategy is BaseStrategy, IERC721Receiver {
     }
 
     function adjustPosition(uint256 _debtOutstanding) internal override {
-        _claim();
+        _claim(); // This means it will call claim in prepareReturn and in adjustPosition
         _pool();
         _stakeAll();
     }
@@ -206,9 +207,9 @@ contract Strategy is BaseStrategy, IERC721Receiver {
         vestor.safeTransferFrom(address(this), _newStrategy, vestId(), vest);
     }
 
-    function protectedTokens() internal view override returns (address[] memory){}
+    function protectedTokens() internal view override returns (address[] memory) {}
 
-    function ethToWant(uint256 _amtInWei) public view virtual override returns (uint256){
+    function ethToWant(uint256 _amtInWei) public view virtual override returns (uint256) {
         return _amtInWei;
     }
 
@@ -355,7 +356,7 @@ contract Strategy is BaseStrategy, IERC721Receiver {
         routerNetwork = _network;
     }
 
-    function vestId() public view returns (uint64 _vestId){
+    function vestId() public view returns (uint64 _vestId) {
         return vestor.depositIDToVestID(address(pool), depositId);
     }
 
@@ -365,6 +366,7 @@ contract Strategy is BaseStrategy, IERC721Receiver {
     }
 
     // Some protocol pools don't allow perfectly full withdrawal. Need to subtract by dust
+    // TODO: uint shouldn't be uint256?
     function setDust(uint _dust) public onlyVaultManagers {
         dust = _dust;
     }
