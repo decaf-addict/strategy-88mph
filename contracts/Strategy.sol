@@ -104,27 +104,25 @@ contract Strategy is BaseStrategy, SwapperEnabled, IERC721Receiver {
 
     function prepareReturn(uint256 _debtOutstanding) internal override returns (uint256 _profit, uint256 _loss, uint256 _debtPayment){
         if (automate) {
-            if (hasMatured()) {
-                // Free up everything. Whatever's not collected as profit will be pooled back to start the next epoch
-                liquidateAllPositions();
-            }
-            _claim();
             _sell();
         }
 
         uint256 totalDebt = vault.strategies(address(this)).totalDebt;
         uint256 totalAssets = estimatedTotalAssets();
-        if (totalAssets >= totalDebt) {
-            _profit += totalAssets.sub(totalDebt);
+
+        _profit = totalAssets > totalDebt ? totalAssets.sub(totalDebt) : 0;
+
+        uint freed;
+        if (hasMatured()) {
+            liquidateAllPositions();
         } else {
-            _loss += totalDebt.sub(totalAssets);
+            uint256 toLiquidate = _debtOutstanding.add(_profit);
+            if (toLiquidate > 0) {
+                (freed, _loss) = liquidatePosition(toLiquidate);
+            }
         }
 
-        (uint freed, uint short) = liquidatePosition(_debtOutstanding.add(_profit));
-        _profit = Math.min(_profit, freed);
-        _debtPayment = freed.sub(_profit);
-        _loss += short;
-
+        _debtPayment = Math.min(_debtOutstanding, freed);
 
         // net out PnL
         if (_profit > _loss) {
@@ -149,19 +147,13 @@ contract Strategy is BaseStrategy, SwapperEnabled, IERC721Receiver {
 
     function liquidatePosition(uint256 _amountNeeded) internal override returns (uint256 _liquidatedAmount, uint256 _loss){
         if (_amountNeeded > 0) {
-            if (estimatedTotalAssets() <= _amountNeeded) {
-                _liquidatedAmount = liquidateAllPositions();
-                return (_liquidatedAmount, _amountNeeded.sub(_liquidatedAmount));
-            }
-
             uint256 loose = balanceOfWant();
             if (_amountNeeded > loose) {
                 uint toExitAmount = _amountNeeded.sub(loose);
                 IDInterest.Deposit memory depositInfo = getDepositInfo();
                 uint toExitVirtualAmount = toExitAmount.mul(depositInfo.interestRate.add(1e18)).div(1e18);
-                uint amt = hasMatured() ? toExitAmount : toExitVirtualAmount;
 
-                _poolWithdraw(amt);
+                _poolWithdraw(toExitVirtualAmount);
 
                 _liquidatedAmount = Math.min(balanceOfWant(), _amountNeeded);
                 _loss = _amountNeeded.sub(_liquidatedAmount);
@@ -175,11 +167,7 @@ contract Strategy is BaseStrategy, SwapperEnabled, IERC721Receiver {
     // exit everything
     function liquidateAllPositions() internal override returns (uint256) {
         IDInterest.Deposit memory depositInfo = getDepositInfo();
-        uint toExit = depositInfo.virtualTokenTotalSupply;
-        if (!hasMatured()) {
-            toExit *= depositInfo.interestRate.add(1e18).div(1e18);
-        }
-        _poolWithdraw(toExit);
+        _poolWithdraw(depositInfo.virtualTokenTotalSupply);
         return balanceOfWant();
     }
 
@@ -241,26 +229,6 @@ contract Strategy is BaseStrategy, SwapperEnabled, IERC721Receiver {
         }
     }
 
-    function collect() external onlyVaultManagers returns (uint _profit)  {
-        return _collect();
-    }
-
-    // Fixed rate interest can only be collected once depositNft has matured.
-    function _collect() internal returns (uint _profit){
-        if (depositId != 0) {
-            if (hasMatured()) {
-                liquidateAllPositions();
-            } else {
-                uint balance = estimatedTotalAssets();
-                uint debt = vault.strategies(address(this)).totalDebt;
-                if (balance > debt) {
-                    (_profit,) = liquidatePosition(balance.sub(debt));
-                }
-            }
-        }
-        return _profit;
-    }
-
     function sell() external onlyVaultManagers {
         _sell();
     }
@@ -276,17 +244,15 @@ contract Strategy is BaseStrategy, SwapperEnabled, IERC721Receiver {
         }
     }
 
-    function poolWithdraw(uint _amount) external onlyVaultManagers {
-        _poolWithdraw(_amount);
+    function poolWithdraw(uint _virtualAmount) external onlyVaultManagers {
+        _poolWithdraw(_virtualAmount);
     }
 
     // withdraw from pool.
-    // Note: Before maturation, amount specified should be multiplied by 1+InterestedRate in order to exit amount
-    // Example: if(hasMatured() == false), to exit 100_000 (5% interest), amount needs to be 105_000. It's dumb I know..
-    function _poolWithdraw(uint _amount) internal {
+    function _poolWithdraw(uint _virtualAmount) internal {
         // ensure that withdraw amount is more than dust and minWithdraw amount, otherwise, some protocols will revert
-        if (_amount > dust && _amount.sub(dust) > minWithdraw) {
-            pool.withdraw(depositId, _amount.sub(dust), !hasMatured());
+        if (_virtualAmount > dust && _virtualAmount.sub(dust) > minWithdraw) {
+            pool.withdraw(depositId, _virtualAmount, !hasMatured());
         }
     }
 

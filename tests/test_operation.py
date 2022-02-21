@@ -70,7 +70,7 @@ def test_profitable_harvest(
     assert pytest.approx(strategy.estimatedTotalAssets(), rel=RELATIVE_APPROX) == amount
 
     # rewards vest over time
-    chain.sleep(360)
+    chain.sleep(3600)
     strategy.tend({"from": gov})
 
     before_pps = vault.pricePerShare()
@@ -78,12 +78,13 @@ def test_profitable_harvest(
     # Harvest 2: Realize profit
     chain.sleep(1)
     strategy.harvest({"from": gov})
+    chain.sleep(3600)  # 6 hrs needed for profits to unlock
+    chain.mine(1)
     util.yswap_execute(tradeFactory, strategy, strategy.reward(), strategy.want(), swapper, mech)
     strategy.harvest({"from": gov})
-    chain.sleep(3600 * 6)  # 6 hrs needed for profits to unlock
-    chain.mine(1)
     profit = token.balanceOf(vault.address)  # Profits go to vault
-
+    chain.sleep(3600 * 24)  # 6 hrs needed for profits to unlock
+    chain.mine(1)
     assert strategy.estimatedTotalAssets() + profit > amount
     assert vault.pricePerShare() > before_pps
 
@@ -154,6 +155,8 @@ def test_change_debt(
     vault.updateStrategyDebtRatio(strategy.address, 5_000, {"from": gov})
     chain.sleep(3600)
     strategy.harvest({"from": gov})
+    chain.sleep(3600 * 24)
+    chain.mine(1)
     util.yswap_execute(tradeFactory, strategy, strategy.reward(), strategy.want(), swapper, mech)
     strategy.harvest({"from": gov})
 

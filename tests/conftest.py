@@ -135,8 +135,8 @@ def amount2(accounts, token2, user, token2_whale):
 # 1e10 comes from DAI dec 1e18 - cDAI decimal 1e8 -> need a minimum of 1e10 DAI in order to swap out cDAI > 0
 mins = {
     "WFTM": [0, 0],  # WFTM via Geist
-    "DAI": [1e8, 1e8],  # DAI via Scream
-    "USDC": [0, 1e2],  # USDC via Scream
+    "DAI": [1e8, 0],  # DAI via Scream
+    "USDC": [0, 0],  # USDC via Scream
 }
 
 
@@ -236,13 +236,14 @@ def swapper(tradeFactory, yMechs):
 
 
 @pytest.fixture
-def strategy(keeper, vault, gov, min, strategyFactory, Strategy, tradeFactory, yMechs):
+def strategy(chain, keeper, vault, gov, min, strategyFactory, Strategy, tradeFactory, yMechs):
     strategy = Strategy.at(strategyFactory.original())
     strategy.setKeeper(keeper, {'from': gov})
     strategy.setMinWithdraw(min[0], {'from': gov})
     strategy.setDust(min[1], {'from': gov})
     vault.addStrategy(strategy, 10_000, 0, 2 ** 256 - 1, 1_000, {"from": gov})
     tradeFactory.grantRole(tradeFactory.STRATEGY(), strategy, {"from": yMechs, "gas_price": "0 gwei"})
+    chain.sleep(1)
     yield strategy
 
 
