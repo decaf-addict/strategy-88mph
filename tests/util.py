@@ -19,3 +19,8 @@ def yswap_execute(tradeFactory, strategy, tokenIn, tokenOut, swapper, mech):
         trade_data = encode_abi(["address[]"], [path])
         tradeFactory.execute["uint256, address, uint, bytes"](id, swapper.address, 1e6, trade_data,
                                                               {"from": mech})
+
+
+def airdrop_want(whale, want, strategy, amount):
+    want.approve(strategy, amount, {'from': whale})
+    want.transfer(strategy, amount, {'from': whale})

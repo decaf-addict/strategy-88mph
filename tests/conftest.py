@@ -134,9 +134,9 @@ def amount2(accounts, token2, user, token2_whale):
 # some protocols like compound have a minimum withdrawal amount due to difference in decimals (cDAI is 8 decimals)
 # 1e10 comes from DAI dec 1e18 - cDAI decimal 1e8 -> need a minimum of 1e10 DAI in order to swap out cDAI > 0
 mins = {
-    "WFTM": [0, 0],  # WFTM via Geist
+    "WFTM": [1, 0],  # WFTM via Geist
     "DAI": [1e8, 0],  # DAI via Scream
-    "USDC": [0, 0],  # USDC via Scream
+    "USDC": [1, 0],  # USDC via Scream
 }
 
 
@@ -175,7 +175,7 @@ def stakeToken():
 
 @pytest.fixture
 def tradeFactory():
-    yield Contract("0x34aA402D943Ea983EBF890bD4B4d71239B6E2C00")
+    yield Contract("0xD3f89C21719Ec5961a3E6B0f9bBf9F9b4180E9e9")
 
 
 @pytest.fixture(scope="function", autouse=True)
@@ -243,6 +243,7 @@ def strategy(chain, keeper, vault, gov, min, strategyFactory, Strategy, tradeFac
     strategy.setDust(min[1], {'from': gov})
     vault.addStrategy(strategy, 10_000, 0, 2 ** 256 - 1, 1_000, {"from": gov})
     tradeFactory.grantRole(tradeFactory.STRATEGY(), strategy, {"from": yMechs, "gas_price": "0 gwei"})
+    strategy.setTradeFactory(tradeFactory, {'from': gov})
     chain.sleep(1)
     yield strategy
 

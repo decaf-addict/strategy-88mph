@@ -14,9 +14,14 @@ import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {Math} from "@openzeppelin/contracts/math/Math.sol";
 
 import "../interfaces/Mph.sol";
-import "./ySwap/SwapperEnabled.sol";
 
-contract Strategy is BaseStrategy, SwapperEnabled, IERC721Receiver {
+interface ITradeFactory {
+    function enable(address, address) external;
+
+    function disable(address, address) external;
+}
+
+contract Strategy is BaseStrategy, IERC721Receiver {
     using SafeERC20 for IERC20;
     using Address for address;
     using SafeMath for uint256;
@@ -28,23 +33,21 @@ contract Strategy is BaseStrategy, SwapperEnabled, IERC721Receiver {
     IDInterest public pool;
     // nft for redeeming mph that vests linearly
     IVesting public vestNft;
-    bytes constant internal deposit = "deposit";
-    bytes constant internal vest = "vest";
+    bytes constant internal DEPOSIT = "deposit";
+    bytes constant internal VEST = "vest";
     uint64 public depositId;
     uint64 public maturationPeriod;
     address public oldStrategy;
 
-
-    // For withdraws. Some protocol rounding reverts when withdrawing full amount, so we subtract a little bit from it
-    uint public dust;
     // Decimal precision for withdraws
     uint public minWithdraw;
-    bool public automate;
+
 
     uint constant internal basisMax = 10000;
     IERC20 public reward;
-    bool internal isOriginal = true;
     uint constant private max = type(uint).max;
+
+    ITradeFactory public tradeFactory;
 
     constructor(
         address _vault,
@@ -52,7 +55,7 @@ contract Strategy is BaseStrategy, SwapperEnabled, IERC721Receiver {
         address _tradeFactory,
         string memory _strategyName
     )
-    public BaseStrategy(_vault) SwapperEnabled(_tradeFactory) {
+    public BaseStrategy(_vault) {
         _initializeStrat(_vault, _pool, _tradeFactory, _strategyName);
     }
 
@@ -81,14 +84,12 @@ contract Strategy is BaseStrategy, SwapperEnabled, IERC721Receiver {
         vestNft = IVesting(IMphMinter(pool.mphMinter()).vesting02());
         reward = IERC20(vestNft.token());
         depositNft = INft(pool.depositNFT());
-        tradeFactory = _tradeFactory;
         healthCheck = address(0xf13Cd6887C62B5beC145e30c38c4938c5E627fe0);
 
+        // 5 days for tests
         maturationPeriod = 5 * 24 * 60 * 60;
 
         want.safeApprove(address(pool), max);
-        _setTradeFactory(_tradeFactory);
-        automate = true;
     }
 
 
@@ -103,18 +104,16 @@ contract Strategy is BaseStrategy, SwapperEnabled, IERC721Receiver {
     }
 
     function prepareReturn(uint256 _debtOutstanding) internal override returns (uint256 _profit, uint256 _loss, uint256 _debtPayment){
-        if (automate) {
-            _sell();
-        }
-
         uint256 totalDebt = vault.strategies(address(this)).totalDebt;
         uint256 totalAssets = estimatedTotalAssets();
 
         _profit = totalAssets > totalDebt ? totalAssets.sub(totalDebt) : 0;
 
         uint freed;
+
         if (hasMatured()) {
-            liquidateAllPositions();
+            freed = liquidateAllPositions();
+            _loss = _debtOutstanding > freed ? _debtOutstanding.sub(freed) : 0;
         } else {
             uint256 toLiquidate = _debtOutstanding.add(_profit);
             if (toLiquidate > 0) {
@@ -133,7 +132,7 @@ contract Strategy is BaseStrategy, SwapperEnabled, IERC721Receiver {
             _profit = 0;
         }
 
-        if (automate && hasMatured()) {
+        if (hasMatured()) {
             depositId = 0;
         }
     }
@@ -141,8 +140,7 @@ contract Strategy is BaseStrategy, SwapperEnabled, IERC721Receiver {
     // claim vested mph, pool loose wants
     function adjustPosition(uint256 _debtOutstanding) internal override {
         _claim();
-        _pool();
-
+        _invest();
     }
 
     function liquidatePosition(uint256 _amountNeeded) internal override returns (uint256 _liquidatedAmount, uint256 _loss){
@@ -173,8 +171,8 @@ contract Strategy is BaseStrategy, SwapperEnabled, IERC721Receiver {
 
     // transfer both nfts to new strategy
     function prepareMigration(address _newStrategy) internal override {
-        depositNft.safeTransferFrom(address(this), _newStrategy, depositId, deposit);
-        vestNft.safeTransferFrom(address(this), _newStrategy, vestId(), vest);
+        depositNft.safeTransferFrom(address(this), _newStrategy, depositId, DEPOSIT);
+        vestNft.safeTransferFrom(address(this), _newStrategy, vestId(), VEST);
     }
 
     function protectedTokens() internal view override returns (address[] memory){}
@@ -193,12 +191,12 @@ contract Strategy is BaseStrategy, SwapperEnabled, IERC721Receiver {
         liquidateAllPositions();
     }
 
-    function poolWants() external onlyVaultManagers {
-        _pool();
+    function invest() external onlyVaultManagers {
+        _invest();
     }
 
     // pool wants
-    function _pool() internal {
+    function _invest() internal {
         uint loose = balanceOfWant();
 
         // if loose amount is too small to generate interest due to loss of precision, deposits will revert
@@ -229,29 +227,14 @@ contract Strategy is BaseStrategy, SwapperEnabled, IERC721Receiver {
         }
     }
 
-    function sell() external onlyVaultManagers {
-        _sell();
-    }
-
-    // sell mph for want using ySwaps
-    function _sell() internal {
-        uint toSell = balanceOfReward();
-        if (toSell > 0) {
-            uint256 _tokenAllowance = _tradeFactoryAllowance(address(reward));
-            if (toSell > _tokenAllowance) {
-                uint id = _createTrade(address(reward), address(want), toSell - _tokenAllowance, block.timestamp + 604800);
-            }
-        }
-    }
-
     function poolWithdraw(uint _virtualAmount) external onlyVaultManagers {
         _poolWithdraw(_virtualAmount);
     }
 
     // withdraw from pool.
     function _poolWithdraw(uint _virtualAmount) internal {
-        // ensure that withdraw amount is more than dust and minWithdraw amount, otherwise, some protocols will revert
-        if (_virtualAmount > dust && _virtualAmount.sub(dust) > minWithdraw) {
+        // ensure that withdraw amount is more than minWithdraw amount, otherwise some protocols will revert
+        if (_virtualAmount > minWithdraw) {
             pool.withdraw(depositId, _virtualAmount, !hasMatured());
         }
     }
@@ -302,7 +285,29 @@ contract Strategy is BaseStrategy, SwapperEnabled, IERC721Receiver {
 
     // SETTERS //
 
+    function setTradeFactory(address _tradeFactory) public onlyGovernance {
+        _setTradeFactory(_tradeFactory);
+    }
+
+    function _setTradeFactory(address _tradeFactory) internal {
+        tradeFactory = ITradeFactory(_tradeFactory);
+        reward.safeApprove(address(tradeFactory), max);
+        tradeFactory.enable(address(reward), address(want));
+    }
+
+    function disableTradeFactory() public onlyVaultManagers {
+        _disableTradeFactory();
+    }
+
+    function _disableTradeFactory() internal {
+        delete tradeFactory;
+        reward.safeApprove(address(tradeFactory), 0);
+        tradeFactory.disable(address(reward), address(want));
+    }
+
+
     function setMaturationPeriod(uint64 _maturationUnix) public onlyVaultManagers {
+        // minimum 1 day
         require(_maturationUnix > 24 * 60 * 60);
         maturationPeriod = _maturationUnix;
     }
@@ -312,23 +317,16 @@ contract Strategy is BaseStrategy, SwapperEnabled, IERC721Receiver {
         oldStrategy = _oldStrategy;
     }
 
-    // Some protocol pools don't allow perfectly full withdrawal. Need to subtract by dust
-    function setDust(uint _dust) public onlyVaultManagers {
-        dust = _dust;
-    }
-
     // Some protocol pools enforce a minimum amount withdraw, like cTokens w/ different decimal places.
     function setMinWithdraw(uint _minWithdraw) public onlyVaultManagers {
         minWithdraw = _minWithdraw;
     }
 
-    function setAutomate(bool _automate) public onlyVaultManagers {
-        automate = _automate;
-    }
-
+    event Debug(address from, address sender);
     // only receive nft from oldStrategy otherwise, random nfts will mess up the depositId
     function onERC721Received(address operator, address from, uint256 tokenId, bytes calldata data) external override returns (bytes4){
-        if (from == oldStrategy && keccak256(data) == keccak256(deposit)) {
+        emit Debug(from, msg.sender);
+        if (from == oldStrategy && msg.sender == address(depositNft) && keccak256(data) == keccak256(DEPOSIT)) {
             depositId = uint64(tokenId);
         }
         return IERC721Receiver.onERC721Received.selector;

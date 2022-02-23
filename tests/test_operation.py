@@ -57,7 +57,7 @@ def test_emergency_exit(
 
 def test_profitable_harvest(
         chain, accounts, token, vault, strategy, user, strategist, amount, mech, swapper, RELATIVE_APPROX, gov,
-        tradeFactory
+        tradeFactory, token_whale
 ):
     # Deposit to the vault
     token.approve(vault.address, amount, {"from": user})
@@ -80,7 +80,8 @@ def test_profitable_harvest(
     strategy.harvest({"from": gov})
     chain.sleep(3600)  # 6 hrs needed for profits to unlock
     chain.mine(1)
-    util.yswap_execute(tradeFactory, strategy, strategy.reward(), strategy.want(), swapper, mech)
+    # util.yswap_execute(tradeFactory, strategy, strategy.reward(), strategy.want(), swapper, mech)
+    util.airdrop_want(token_whale, token, strategy, amount / 1000)
     strategy.harvest({"from": gov})
     profit = token.balanceOf(vault.address)  # Profits go to vault
     chain.sleep(3600 * 24)  # 6 hrs needed for profits to unlock
@@ -127,7 +128,7 @@ def test_matured_harvest(chain, accounts, token, vault, strategy, user, strategi
 
 def test_change_debt(
         chain, gov, token, vault, strategy, user, strategist, amount, RELATIVE_APPROX,
-        percentageFeeModel, percentageFeeModelOwner, tradeFactory, swapper, mech
+        percentageFeeModel, percentageFeeModelOwner, tradeFactory, swapper, mech, token_whale
 ):
     # Deposit to the vault and harvest
     token.approve(vault.address, amount, {"from": user})
@@ -157,7 +158,8 @@ def test_change_debt(
     strategy.harvest({"from": gov})
     chain.sleep(3600 * 24)
     chain.mine(1)
-    util.yswap_execute(tradeFactory, strategy, strategy.reward(), strategy.want(), swapper, mech)
+    # util.yswap_execute(tradeFactory, strategy, strategy.reward(), strategy.want(), swapper, mech)
+    util.airdrop_want(token_whale, token, strategy, amount / 1000)
     strategy.harvest({"from": gov})
 
     chain.sleep(6 * 3600)
