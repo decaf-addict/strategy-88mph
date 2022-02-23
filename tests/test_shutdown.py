@@ -6,7 +6,7 @@ import pytest
 
 
 def test_vault_shutdown_can_withdraw(
-    chain, token, vault, strategy, user, amount, RELATIVE_APPROX, percentageFeeModelOwner, percentageFeeModel, gov
+        chain, token, vault, strategy, user, amount, RELATIVE_APPROX, percentageFeeModelOwner, percentageFeeModel, gov
 ):
     ## Deposit in Vault
     token.approve(vault.address, amount, {"from": user})
@@ -35,7 +35,8 @@ def test_vault_shutdown_can_withdraw(
 
 
 def test_basic_shutdown(
-    chain, token, vault, strategy, user, strategist, amount, RELATIVE_APPROX, percentageFeeModelOwner, percentageFeeModel, gov
+        chain, token, vault, strategy, user, strategist, amount, RELATIVE_APPROX, percentageFeeModelOwner,
+        percentageFeeModel, gov
 ):
     # Deposit to the vault
     token.approve(vault.address, amount, {"from": user})
@@ -66,5 +67,5 @@ def test_basic_shutdown(
     strategy.harvest({"from": gov})  ## Remove funds from strategy
 
     assert token.balanceOf(strategy) == 0
-    assert token.balanceOf(vault) >= amount - strategy.dust()  ## The vault has all funds
+    assert token.balanceOf(vault) >= amount  ## The vault has all funds
     ## NOTE: May want to tweak this based on potential loss during migration

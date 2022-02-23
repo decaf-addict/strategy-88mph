@@ -29,13 +29,13 @@ interface IVesting {
 
     function withdraw(uint64 vestID) external returns (uint256 withdrawnAmount);
 
-    function token() external returns (address);
+    function token() external view returns (address);
 
     function ownerOf(uint vestId) external view returns (address);
 }
 
 interface IMphMinter {
-    function vesting02() external returns (address);
+    function vesting02() external view returns (address);
 }
 
 interface IDInterest {
@@ -48,11 +48,13 @@ interface IDInterest {
         uint64 fundingID; // The ID of the associated Funding struct. 0 if not funded.
     }
 
-    function mphMinter() external returns (address);
+    function feeModel() external view returns (address);
 
-    function stablecoin() external returns (address);
+    function mphMinter() external view returns (address);
 
-    function depositNFT() external returns (address);
+    function stablecoin() external view returns (address);
+
+    function depositNFT() external view returns (address);
 
     /**
         @notice Create a deposit using `depositAmount` stablecoin that matures at timestamp `maturationTimestamp`.

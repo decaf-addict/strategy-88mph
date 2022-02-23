@@ -66,7 +66,7 @@ def token(request):
 whale_address = {
     "WFTM": "0x39B3bd37208CBaDE74D0fcBDBb12D606295b430a",
     "DAI": "0x07E6332dD090D287d3489245038daF987955DCFB",
-    "USDC": "0x2dd7C9371965472E5A5fD28fbE165007c61439E1"
+    "USDC": "0x93C08a3168fC469F3fC165cd3A471D19a37ca19e"
 }
 
 
@@ -240,7 +240,6 @@ def strategy(chain, keeper, vault, gov, min, strategyFactory, Strategy, tradeFac
     strategy = Strategy.at(strategyFactory.original())
     strategy.setKeeper(keeper, {'from': gov})
     strategy.setMinWithdraw(min[0], {'from': gov})
-    strategy.setDust(min[1], {'from': gov})
     vault.addStrategy(strategy, 10_000, 0, 2 ** 256 - 1, 1_000, {"from": gov})
     tradeFactory.grantRole(tradeFactory.STRATEGY(), strategy, {"from": yMechs, "gas_price": "0 gwei"})
     strategy.setTradeFactory(tradeFactory, {'from': gov})

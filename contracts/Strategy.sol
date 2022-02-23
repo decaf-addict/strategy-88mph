@@ -21,6 +21,14 @@ interface ITradeFactory {
     function disable(address, address) external;
 }
 
+interface IPercentageFeeModel {
+    function getEarlyWithdrawFeeAmount(
+        address pool,
+        uint64 depositID,
+        uint256 withdrawnDepositAmount
+    ) external view returns (uint256 feeAmount);
+}
+
 contract Strategy is BaseStrategy, IERC721Receiver {
     using SafeERC20 for IERC20;
     using Address for address;
@@ -41,7 +49,7 @@ contract Strategy is BaseStrategy, IERC721Receiver {
 
     // Decimal precision for withdraws
     uint public minWithdraw;
-
+    bool public allowEarlyWithdrawFee;
 
     uint constant internal basisMax = 10000;
     IERC20 public reward;
@@ -86,7 +94,7 @@ contract Strategy is BaseStrategy, IERC721Receiver {
         depositNft = INft(pool.depositNFT());
         healthCheck = address(0xf13Cd6887C62B5beC145e30c38c4938c5E627fe0);
 
-        // 5 days for tests
+        // default 5 days
         maturationPeriod = 5 * 24 * 60 * 60;
 
         want.safeApprove(address(pool), max);
@@ -199,15 +207,16 @@ contract Strategy is BaseStrategy, IERC721Receiver {
     function _invest() internal {
         uint loose = balanceOfWant();
 
-        // if loose amount is too small to generate interest due to loss of precision, deposits will revert
-        uint futureInterest = pool.calculateInterestAmount(loose, maturationPeriod);
-
         if (depositId != 0) {
-            // top up the current deposit aka add more loose to the depositNft position
-            if (loose > 0 && futureInterest > 0) {
+            // top up the current deposit aka add more loose to the depositNft position.
+            // If matured, no action
+            if (loose > 0 && !hasMatured()) {
                 pool.topupDeposit(depositId, loose);
             }
         } else {
+            // if loose amount is too small to generate interest due to loss of precision, deposits will revert
+            uint futureInterest = pool.calculateInterestAmount(loose, maturationPeriod);
+
             // if there's no depositId, we haven't opened a position yet
             if (loose > 0 && futureInterest > 0) {
                 // open a position with a fixed period. Fixed-rate yield can be collected after this period.
@@ -233,6 +242,12 @@ contract Strategy is BaseStrategy, IERC721Receiver {
 
     // withdraw from pool.
     function _poolWithdraw(uint _virtualAmount) internal {
+        // if early withdraw and we don't allow fees, enforce that there's no fees.
+        // This makes sure that we don't get tricked by MPH with empty promises of waived fees.
+        // Otherwise we can lose some principal
+        if (!hasMatured() && !allowEarlyWithdrawFee) {
+            require(getEarlyWithdrawFee() == 0, "!free");
+        }
         // ensure that withdraw amount is more than minWithdraw amount, otherwise some protocols will revert
         if (_virtualAmount > minWithdraw) {
             pool.withdraw(depositId, _virtualAmount, !hasMatured());
@@ -283,6 +298,13 @@ contract Strategy is BaseStrategy, IERC721Receiver {
         return vestNft.depositIDToVestID(address(pool), depositId);
     }
 
+    // fee on full withdrawal
+    function getEarlyWithdrawFee() public view returns (uint _feeAmount){
+        return IPercentageFeeModel(pool.feeModel()).getEarlyWithdrawFeeAmount(address(pool),
+            depositId,
+            estimatedTotalAssets());
+    }
+
     // SETTERS //
 
     function setTradeFactory(address _tradeFactory) public onlyGovernance {
@@ -305,7 +327,6 @@ contract Strategy is BaseStrategy, IERC721Receiver {
         tradeFactory.disable(address(reward), address(want));
     }
 
-
     function setMaturationPeriod(uint64 _maturationUnix) public onlyVaultManagers {
         // minimum 1 day
         require(_maturationUnix > 24 * 60 * 60);
@@ -322,11 +343,13 @@ contract Strategy is BaseStrategy, IERC721Receiver {
         minWithdraw = _minWithdraw;
     }
 
-    event Debug(address from, address sender);
+    function setAllowWithdrawFee(bool _allow) public onlyVaultManagers {
+        allowEarlyWithdrawFee = _allow;
+    }
+
     // only receive nft from oldStrategy otherwise, random nfts will mess up the depositId
     function onERC721Received(address operator, address from, uint256 tokenId, bytes calldata data) external override returns (bytes4){
-        emit Debug(from, msg.sender);
-        if (from == oldStrategy && msg.sender == address(depositNft) && keccak256(data) == keccak256(DEPOSIT)) {
+        if (msg.sender == address(depositNft) && from == oldStrategy && keccak256(data) == keccak256(DEPOSIT)) {
             depositId = uint64(tokenId);
         }
         return IERC721Receiver.onERC721Received.selector;

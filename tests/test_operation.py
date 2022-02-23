@@ -26,7 +26,7 @@ def test_operation(
     # tend()
     strategy.tend({"from": gov})
 
-    chain.sleep(7 * 24 * 60 * 60)
+    chain.sleep(6 * 60 * 60)
     chain.mine(1)
 
     # withdrawal
@@ -57,7 +57,7 @@ def test_emergency_exit(
 
 def test_profitable_harvest(
         chain, accounts, token, vault, strategy, user, strategist, amount, mech, swapper, RELATIVE_APPROX, gov,
-        tradeFactory, token_whale
+        tradeFactory, token_whale, percentageFeeModel, percentageFeeModelOwner
 ):
     # Deposit to the vault
     token.approve(vault.address, amount, {"from": user})
@@ -69,6 +69,9 @@ def test_profitable_harvest(
     strategy.harvest({"from": gov})
     assert pytest.approx(strategy.estimatedTotalAssets(), rel=RELATIVE_APPROX) == amount
 
+    # remove .5% early withdrawal fee
+    percentageFeeModel.overrideEarlyWithdrawFeeForDeposit(strategy.pool(), strategy.depositId(), 0,
+                                                          {'from': percentageFeeModelOwner})
     # rewards vest over time
     chain.sleep(3600)
     strategy.tend({"from": gov})
@@ -90,7 +93,8 @@ def test_profitable_harvest(
     assert vault.pricePerShare() > before_pps
 
 
-def test_matured_harvest(chain, accounts, token, vault, strategy, user, strategist, amount, RELATIVE_APPROX, gov):
+def test_matured_harvest(chain, accounts, token, vault, strategy, user, strategist, amount, RELATIVE_APPROX, gov,
+                         percentageFeeModel, percentageFeeModelOwner, token_whale):
     # Deposit to the vault
     token.approve(vault.address, amount, {"from": user})
     vault.deposit(amount, {"from": user})
@@ -98,25 +102,54 @@ def test_matured_harvest(chain, accounts, token, vault, strategy, user, strategi
 
     # Harvest 1: Send funds through the strategy
     chain.sleep(1)
+
+    strategy.setMaturationPeriod(24 * 60 * 60 + 1, {"from": gov})
+
     strategy.harvest({"from": gov})
     assert pytest.approx(strategy.estimatedTotalAssets(), rel=RELATIVE_APPROX) == amount
 
+    # remove .5% early withdrawal fee
+    percentageFeeModel.overrideEarlyWithdrawFeeForDeposit(strategy.pool(), strategy.depositId(), 0,
+                                                          {'from': percentageFeeModelOwner})
+
+    print(f'premature deposit: {strategy.getDepositInfo()}')
+
     # half a year to mature deposit
-    chain.sleep(181 * 24 * 60 * 60)
+    chain.snapshot()
+    chain.sleep(strategy.maturationPeriod() + 1)
     chain.mine(1)
+
+    print(f'mature deposit: {strategy.getDepositInfo()}')
 
     old_deposit_id = strategy.depositId()
     old_vest_id = strategy.vestId()
 
     assert strategy.hasMatured() == True
+
+    pooled_before = strategy.balanceOfPooled()
+
+    # # test tend after maturation
+    # # tests whether topping up can still be done after maturation
+    token.approve(strategy.address, amount / 1000, {"from": token_whale})
+    token.transfer(strategy.address, amount / 1000, {"from": token_whale})
+    strategy.tend({'from': gov})
+
+    # make sure more funds don't get pooled in after maturation until a harvest happens to start a new position for new term
+    assert strategy.balanceOfPooled() == pooled_before
+
+    print(f'mature deposit after more funds: {strategy.getDepositInfo()}')
+
     before_pps = vault.pricePerShare()
     before_id = strategy.depositId()
     # harvest collects the interest
+
     strategy.harvest({"from": gov})
     assert strategy.depositId() != before_id
     chain.sleep(3600 * 6)  # 6 hrs needed for profits to unlock
     chain.mine(1)
     profit = token.balanceOf(vault.address)  # Profits go to vault
+
+    print(f'new term deposit: {strategy.getDepositInfo()}')
 
     # assert new nfts were created due to rollover to a new deposit
     assert old_deposit_id != strategy.depositId()
@@ -136,15 +169,17 @@ def test_change_debt(
     vault.updateStrategyDebtRatio(strategy.address, 5_000, {"from": gov})
     chain.sleep(1)
     strategy.harvest({"from": gov})
+
+    # remove .5% early withdrawal fee
+    percentageFeeModel.overrideEarlyWithdrawFeeForDeposit(strategy.pool(), strategy.depositId(), 0,
+                                                          {'from': percentageFeeModelOwner})
+
     half = amount / 2
     assert pytest.approx(strategy.estimatedTotalAssets(), rel=RELATIVE_APPROX) == half
 
     chain.sleep(6 * 3600)
     strategy.harvest({"from": gov})
 
-    # remove .5% early withdrawal fee
-    percentageFeeModel.overrideEarlyWithdrawFeeForDeposit(strategy.pool(), strategy.depositId(), 0,
-                                                          {'from': percentageFeeModelOwner})
     vault.updateStrategyDebtRatio(strategy.address, 10_000, {"from": gov})
     chain.sleep(3600)
     strategy.harvest({"from": gov})
@@ -172,8 +207,8 @@ def test_change_debt(
     strategy.harvest({"from": gov})
     chain.sleep(6 * 3600)
     chain.mine(1)
-    # compounding dusts and rounding errors + 5
-    assert strategy.estimatedTotalAssets() <= strategy.dust() * 10 + 5
+
+    assert pytest.approx(strategy.estimatedTotalAssets(), rel=RELATIVE_APPROX) == 0
 
     after_pps = vault.pricePerShare()
     assert after_pps > before_pps
