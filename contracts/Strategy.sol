@@ -6,9 +6,19 @@ pragma solidity 0.6.12;
 pragma experimental ABIEncoderV2;
 
 // These are the core Yearn libraries
-import {BaseStrategy, StrategyParams} from "@yearnvaults/contracts/BaseStrategy.sol";
-import {SafeERC20, SafeMath, IERC20, Address} from "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
-import {IERC721Receiver} from "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
+import {
+    BaseStrategy,
+    StrategyParams
+} from "@yearnvaults/contracts/BaseStrategy.sol";
+import {
+    SafeERC20,
+    SafeMath,
+    IERC20,
+    Address
+} from "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
+import {
+    IERC721Receiver
+} from "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
 import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {Math} from "@openzeppelin/contracts/math/Math.sol";
@@ -41,19 +51,22 @@ contract Strategy is BaseStrategy, IERC721Receiver {
     IDInterest public pool;
     // nft for redeeming mph that vests linearly
     IVesting public vestNft;
-    bytes constant internal DEPOSIT = "deposit";
-    bytes constant internal VEST = "vest";
+    bytes internal constant DEPOSIT = "deposit";
+    bytes internal constant VEST = "vest";
     uint64 public depositId;
     uint64 public maturationPeriod;
     address public oldStrategy;
 
     // Decimal precision for withdraws
-    uint public minWithdraw;
+    uint256 public minWithdraw;
     bool public allowEarlyWithdrawFee;
 
-    uint constant internal basisMax = 10000;
+    uint256 internal constant basisMax = 10000;
     IERC20 public reward;
-    uint constant private max = type(uint).max;
+    uint256 private constant max = type(uint256).max;
+
+    address public keep;
+    uint256 public keepBips;
 
     ITradeFactory public tradeFactory;
 
@@ -62,8 +75,7 @@ contract Strategy is BaseStrategy, IERC721Receiver {
         address _pool,
         address _tradeFactory,
         string memory _strategyName
-    )
-    public BaseStrategy(_vault) {
+    ) public BaseStrategy(_vault) {
         _initializeStrat(_vault, _pool, _tradeFactory, _strategyName);
     }
 
@@ -98,8 +110,11 @@ contract Strategy is BaseStrategy, IERC721Receiver {
         maturationPeriod = 5 * 24 * 60 * 60;
 
         want.safeApprove(address(pool), max);
-    }
 
+        // 0% to chad by default
+        keep = governance();
+        keepBips = 0;
+    }
 
     // VAULT OPERATIONS //
     function name() external view override returns (string memory) {
@@ -111,13 +126,21 @@ contract Strategy is BaseStrategy, IERC721Receiver {
         return balanceOfWant().add(balanceOfPooled());
     }
 
-    function prepareReturn(uint256 _debtOutstanding) internal override returns (uint256 _profit, uint256 _loss, uint256 _debtPayment){
+    function prepareReturn(uint256 _debtOutstanding)
+        internal
+        override
+        returns (
+            uint256 _profit,
+            uint256 _loss,
+            uint256 _debtPayment
+        )
+    {
         uint256 totalDebt = vault.strategies(address(this)).totalDebt;
         uint256 totalAssets = estimatedTotalAssets();
 
         _profit = totalAssets > totalDebt ? totalAssets.sub(totalDebt) : 0;
 
-        uint freed;
+        uint256 freed;
 
         if (hasMatured()) {
             freed = liquidateAllPositions();
@@ -151,13 +174,20 @@ contract Strategy is BaseStrategy, IERC721Receiver {
         _invest();
     }
 
-    function liquidatePosition(uint256 _amountNeeded) internal override returns (uint256 _liquidatedAmount, uint256 _loss){
+    function liquidatePosition(uint256 _amountNeeded)
+        internal
+        override
+        returns (uint256 _liquidatedAmount, uint256 _loss)
+    {
         if (_amountNeeded > 0) {
             uint256 loose = balanceOfWant();
             if (_amountNeeded > loose) {
-                uint toExitAmount = _amountNeeded.sub(loose);
+                uint256 toExitAmount = _amountNeeded.sub(loose);
                 IDInterest.Deposit memory depositInfo = getDepositInfo();
-                uint toExitVirtualAmount = toExitAmount.mul(depositInfo.interestRate.add(1e18)).div(1e18);
+                uint256 toExitVirtualAmount =
+                    toExitAmount.mul(depositInfo.interestRate.add(1e18)).div(
+                        1e18
+                    );
 
                 _poolWithdraw(toExitVirtualAmount);
 
@@ -179,13 +209,29 @@ contract Strategy is BaseStrategy, IERC721Receiver {
 
     // transfer both nfts to new strategy
     function prepareMigration(address _newStrategy) internal override {
-        depositNft.safeTransferFrom(address(this), _newStrategy, depositId, DEPOSIT);
+        depositNft.safeTransferFrom(
+            address(this),
+            _newStrategy,
+            depositId,
+            DEPOSIT
+        );
         vestNft.safeTransferFrom(address(this), _newStrategy, vestId(), VEST);
     }
 
-    function protectedTokens() internal view override returns (address[] memory){}
+    function protectedTokens()
+        internal
+        view
+        override
+        returns (address[] memory)
+    {}
 
-    function ethToWant(uint256 _amtInWei) public view virtual override returns (uint256){
+    function ethToWant(uint256 _amtInWei)
+        public
+        view
+        virtual
+        override
+        returns (uint256)
+    {
         return 0;
     }
 
@@ -205,7 +251,7 @@ contract Strategy is BaseStrategy, IERC721Receiver {
 
     // pool wants
     function _invest() internal {
-        uint loose = balanceOfWant();
+        uint256 loose = balanceOfWant();
 
         if (depositId != 0) {
             // top up the current deposit aka add more loose to the depositNft position.
@@ -215,12 +261,16 @@ contract Strategy is BaseStrategy, IERC721Receiver {
             }
         } else {
             // if loose amount is too small to generate interest due to loss of precision, deposits will revert
-            uint futureInterest = pool.calculateInterestAmount(loose, maturationPeriod);
+            uint256 futureInterest =
+                pool.calculateInterestAmount(loose, maturationPeriod);
 
             // if there's no depositId, we haven't opened a position yet
             if (loose > 0 && futureInterest > 0) {
                 // open a position with a fixed period. Fixed-rate yield can be collected after this period.
-                (depositId,) = pool.deposit(loose, uint64(now + maturationPeriod));
+                (depositId, ) = pool.deposit(
+                    loose,
+                    uint64(now + maturationPeriod)
+                );
             }
         }
     }
@@ -231,17 +281,27 @@ contract Strategy is BaseStrategy, IERC721Receiver {
 
     // claim mph. Make sure this always happens before _pool(), otherwise old depositId's rewards could be lost
     function _claim() internal {
+        uint256 _rewardBalanceBeforeClaim = balanceOfReward();
         if (depositId != 0 && balanceOfClaimableReward() > 0) {
             vestNft.withdraw(vestId());
+
+            uint256 _rewardAmountToKeep =
+                balanceOfReward()
+                    .sub(_rewardBalanceBeforeClaim)
+                    .mul(keepBips)
+                    .div(basisMax);
+            if (_rewardAmountToKeep > 0) {
+                reward.safeTransfer(keep, _rewardAmountToKeep);
+            }
         }
     }
 
-    function poolWithdraw(uint _virtualAmount) external onlyVaultManagers {
+    function poolWithdraw(uint256 _virtualAmount) external onlyVaultManagers {
         _poolWithdraw(_virtualAmount);
     }
 
     // withdraw from pool.
-    function _poolWithdraw(uint _virtualAmount) internal {
+    function _poolWithdraw(uint256 _virtualAmount) internal {
         // if early withdraw and we don't allow fees, enforce that there's no fees.
         // This makes sure that we don't get tricked by MPH with empty promises of waived fees.
         // Otherwise we can lose some principal
@@ -261,48 +321,58 @@ contract Strategy is BaseStrategy, IERC721Receiver {
     // HELPERS //
 
     // virtualTokenTotalSupply = deposit + fixed-rate interest. Before maturation, the fixed-rate interest is not withdrawable
-    function balanceOfPooled() public view returns (uint _amount){
+    function balanceOfPooled() public view returns (uint256 _amount) {
         if (depositId != 0) {
-            uint depositWithInterest = getDepositInfo().virtualTokenTotalSupply;
-            uint interestRate = getDepositInfo().interestRate;
-            uint depositWithoutInterest = depositWithInterest.mul(1e18).div(interestRate.add(1e18));
+            uint256 depositWithInterest =
+                getDepositInfo().virtualTokenTotalSupply;
+            uint256 interestRate = getDepositInfo().interestRate;
+            uint256 depositWithoutInterest =
+                depositWithInterest.mul(1e18).div(interestRate.add(1e18));
             return hasMatured() ? depositWithInterest : depositWithoutInterest;
         }
     }
 
-    function balanceOfWant() public view returns (uint _amount){
+    function balanceOfWant() public view returns (uint256 _amount) {
         return want.balanceOf(address(this));
     }
 
-    function balanceOfReward() public view returns (uint _amount){
+    function balanceOfReward() public view returns (uint256 _amount) {
         return reward.balanceOf(address(this));
     }
 
-    function balanceOfClaimableReward() public view returns (uint _amount){
+    function balanceOfClaimableReward() public view returns (uint256 _amount) {
         return vestNft.getVestWithdrawableAmount(vestId());
     }
 
-    function getDepositInfo() public view returns (IDInterest.Deposit memory _deposit){
+    function getDepositInfo()
+        public
+        view
+        returns (IDInterest.Deposit memory _deposit)
+    {
         return pool.getDeposit(depositId);
     }
 
-    function getVest() public view returns (IVesting.Vest memory _vest){
+    function getVest() public view returns (IVesting.Vest memory _vest) {
         return vestNft.getVest(vestId());
     }
 
-    function hasMatured() public view returns (bool){
-        return depositId != 0 ? now > getDepositInfo().maturationTimestamp : false;
+    function hasMatured() public view returns (bool) {
+        return
+            depositId != 0 ? now > getDepositInfo().maturationTimestamp : false;
     }
 
-    function vestId() public view returns (uint64 _vestId){
+    function vestId() public view returns (uint64 _vestId) {
         return vestNft.depositIDToVestID(address(pool), depositId);
     }
 
     // fee on full withdrawal
-    function getEarlyWithdrawFee() public view returns (uint _feeAmount){
-        return IPercentageFeeModel(pool.feeModel()).getEarlyWithdrawFeeAmount(address(pool),
-            depositId,
-            estimatedTotalAssets());
+    function getEarlyWithdrawFee() public view returns (uint256 _feeAmount) {
+        return
+            IPercentageFeeModel(pool.feeModel()).getEarlyWithdrawFeeAmount(
+                address(pool),
+                depositId,
+                estimatedTotalAssets()
+            );
     }
 
     // SETTERS //
@@ -327,7 +397,10 @@ contract Strategy is BaseStrategy, IERC721Receiver {
         tradeFactory.disable(address(reward), address(want));
     }
 
-    function setMaturationPeriod(uint64 _maturationUnix) public onlyVaultManagers {
+    function setMaturationPeriod(uint64 _maturationUnix)
+        public
+        onlyVaultManagers
+    {
         // minimum 1 day
         require(_maturationUnix > 24 * 60 * 60);
         maturationPeriod = _maturationUnix;
@@ -339,7 +412,7 @@ contract Strategy is BaseStrategy, IERC721Receiver {
     }
 
     // Some protocol pools enforce a minimum amount withdraw, like cTokens w/ different decimal places.
-    function setMinWithdraw(uint _minWithdraw) public onlyVaultManagers {
+    function setMinWithdraw(uint256 _minWithdraw) public onlyVaultManagers {
         minWithdraw = _minWithdraw;
     }
 
@@ -347,9 +420,27 @@ contract Strategy is BaseStrategy, IERC721Receiver {
         allowEarlyWithdrawFee = _allow;
     }
 
+    function setKeepParams(address _keep, uint256 _keepBips)
+        external
+        onlyGovernance
+    {
+        require(keepBips <= basisMax);
+        keep = _keep;
+        keepBips = _keepBips;
+    }
+
     // only receive nft from oldStrategy otherwise, random nfts will mess up the depositId
-    function onERC721Received(address operator, address from, uint256 tokenId, bytes calldata data) external override returns (bytes4){
-        if (msg.sender == address(depositNft) && from == oldStrategy && keccak256(data) == keccak256(DEPOSIT)) {
+    function onERC721Received(
+        address operator,
+        address from,
+        uint256 tokenId,
+        bytes calldata data
+    ) external override returns (bytes4) {
+        if (
+            msg.sender == address(depositNft) &&
+            from == oldStrategy &&
+            keccak256(data) == keccak256(DEPOSIT)
+        ) {
             depositId = uint64(tokenId);
         }
         return IERC721Receiver.onERC721Received.selector;

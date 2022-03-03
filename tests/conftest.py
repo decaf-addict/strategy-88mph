@@ -48,17 +48,19 @@ def keeper(accounts):
 token_address = {
     "WFTM": "0x21be370D5312f44cB42ce377BC9b8a0cEF1A4C83",
     "DAI": "0x8D11eC38a3EB5E956B052f67Da8Bdc9bef8Abf3E",
-    "USDC": "0x04068DA6C83AFCFA0e13ba15A6696662335D5B75"
+    "USDC": "0x04068DA6C83AFCFA0e13ba15A6696662335D5B75",
 }
 
 
-@pytest.fixture(params=[
-    "WFTM",
-    "DAI",
-    "USDC",
-],
+@pytest.fixture(
+    params=[
+        "WFTM",
+        "DAI",
+        "USDC",
+    ],
     scope="session",
-    autouse=True)
+    autouse=True,
+)
 def token(request):
     yield Contract(token_address[request.param])
 
@@ -66,7 +68,7 @@ def token(request):
 whale_address = {
     "WFTM": "0x39B3bd37208CBaDE74D0fcBDBb12D606295b430a",
     "DAI": "0x07E6332dD090D287d3489245038daF987955DCFB",
-    "USDC": "0x93C08a3168fC469F3fC165cd3A471D19a37ca19e"
+    "USDC": "0x93C08a3168fC469F3fC165cd3A471D19a37ca19e",
 }
 
 
@@ -85,6 +87,12 @@ pools = {
 @pytest.fixture(scope="session", autouse=True)
 def pool(token):
     yield pools[token.symbol()]
+
+
+@pytest.fixture
+def mph_token():
+    contract_address = "0x511a986E427FFa281ACfCf07AAd70d03040DbEc0"
+    yield Contract(contract_address)
 
 
 amounts = {
@@ -164,7 +172,7 @@ def wftm_whale(accounts):
 @pytest.fixture
 def wftm_amount(user, wftm, wftm_whale):
     wftm_amount = 10 ** wftm.decimals()
-    wftm.transfer(user, wftm_amount, {'from': wftm_whale})
+    wftm.transfer(user, wftm_amount, {"from": wftm_whale})
     yield wftm_amount
 
 
@@ -211,9 +219,16 @@ def percentageFeeModel():
 
 
 @pytest.fixture
-def strategyFactory(strategist, keeper, vault, StrategyFactory, gov, pool, tradeFactory):
-    factory = strategist.deploy(StrategyFactory, vault, pool, tradeFactory,
-                                "88MPH <TokenSymbol> via <ProtocolName>")
+def strategyFactory(
+    strategist, keeper, vault, StrategyFactory, gov, pool, tradeFactory
+):
+    factory = strategist.deploy(
+        StrategyFactory,
+        vault,
+        pool,
+        tradeFactory,
+        "88MPH <TokenSymbol> via <ProtocolName>",
+    )
     yield factory
 
 
@@ -236,13 +251,17 @@ def swapper(tradeFactory, yMechs):
 
 
 @pytest.fixture
-def strategy(chain, keeper, vault, gov, min, strategyFactory, Strategy, tradeFactory, yMechs):
+def strategy(
+    chain, keeper, vault, gov, min, strategyFactory, Strategy, tradeFactory, yMechs
+):
     strategy = Strategy.at(strategyFactory.original())
-    strategy.setKeeper(keeper, {'from': gov})
-    strategy.setMinWithdraw(min[0], {'from': gov})
+    strategy.setKeeper(keeper, {"from": gov})
+    strategy.setMinWithdraw(min[0], {"from": gov})
     vault.addStrategy(strategy, 10_000, 0, 2 ** 256 - 1, 1_000, {"from": gov})
-    tradeFactory.grantRole(tradeFactory.STRATEGY(), strategy, {"from": yMechs, "gas_price": "0 gwei"})
-    strategy.setTradeFactory(tradeFactory, {'from': gov})
+    tradeFactory.grantRole(
+        tradeFactory.STRATEGY(), strategy, {"from": yMechs, "gas_price": "0 gwei"}
+    )
+    strategy.setTradeFactory(tradeFactory, {"from": gov})
     chain.sleep(1)
     yield strategy
 

@@ -6,7 +6,16 @@ import pytest
 
 
 def test_vault_shutdown_can_withdraw(
-        chain, token, vault, strategy, user, amount, RELATIVE_APPROX, percentageFeeModelOwner, percentageFeeModel, gov
+    chain,
+    token,
+    vault,
+    strategy,
+    user,
+    amount,
+    RELATIVE_APPROX,
+    percentageFeeModelOwner,
+    percentageFeeModel,
+    gov,
 ):
     ## Deposit in Vault
     token.approve(vault.address, amount, {"from": user})
@@ -23,8 +32,9 @@ def test_vault_shutdown_can_withdraw(
     assert pytest.approx(strategy.estimatedTotalAssets(), rel=RELATIVE_APPROX) == amount
 
     # remove .5% early withdrawal fee
-    percentageFeeModel.overrideEarlyWithdrawFeeForDeposit(strategy.pool(), strategy.depositId(), 0,
-                                                          {'from': percentageFeeModelOwner})
+    percentageFeeModel.overrideEarlyWithdrawFeeForDeposit(
+        strategy.pool(), strategy.depositId(), 0, {"from": percentageFeeModelOwner}
+    )
     ## Set Emergency
     vault.setEmergencyShutdown(True)
 
@@ -35,8 +45,17 @@ def test_vault_shutdown_can_withdraw(
 
 
 def test_basic_shutdown(
-        chain, token, vault, strategy, user, strategist, amount, RELATIVE_APPROX, percentageFeeModelOwner,
-        percentageFeeModel, gov
+    chain,
+    token,
+    vault,
+    strategy,
+    user,
+    strategist,
+    amount,
+    RELATIVE_APPROX,
+    percentageFeeModelOwner,
+    percentageFeeModel,
+    gov,
 ):
     # Deposit to the vault
     token.approve(vault.address, amount, {"from": user})
@@ -49,8 +68,9 @@ def test_basic_shutdown(
     assert pytest.approx(strategy.estimatedTotalAssets(), rel=RELATIVE_APPROX) == amount
 
     # remove .5% early withdrawal fee
-    percentageFeeModel.overrideEarlyWithdrawFeeForDeposit(strategy.pool(), strategy.depositId(), 0,
-                                                          {'from': percentageFeeModelOwner})
+    percentageFeeModel.overrideEarlyWithdrawFeeForDeposit(
+        strategy.pool(), strategy.depositId(), 0, {"from": percentageFeeModelOwner}
+    )
 
     ## Earn interest
     chain.sleep(3600 * 24 * 1)  ## Sleep 1 day
