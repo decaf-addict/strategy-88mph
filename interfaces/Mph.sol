@@ -2,7 +2,12 @@
 pragma solidity >=0.6.0 <0.7.0;
 pragma experimental ABIEncoderV2;
 
-import {SafeERC20, SafeMath, IERC20, Address} from "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
+import {
+    SafeERC20,
+    SafeMath,
+    IERC20,
+    Address
+} from "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 
 interface IVesting {
     struct Vest {
@@ -21,9 +26,15 @@ interface IVesting {
         bytes memory _data
     ) external;
 
-    function depositIDToVestID(address _owner, uint64 _depositId) external view returns (uint64 _vestId);
+    function depositIDToVestID(address _owner, uint64 _depositId)
+        external
+        view
+        returns (uint64 _vestId);
 
-    function getVestWithdrawableAmount(uint64 vestID) external view returns (uint256);
+    function getVestWithdrawableAmount(uint64 vestID)
+        external
+        view
+        returns (uint256);
 
     function getVest(uint64 vestID) external view returns (Vest memory);
 
@@ -31,7 +42,7 @@ interface IVesting {
 
     function token() external view returns (address);
 
-    function ownerOf(uint vestId) external view returns (address);
+    function ownerOf(uint256 vestId) external view returns (address);
 }
 
 interface IMphMinter {
@@ -64,7 +75,9 @@ interface IDInterest {
         @return depositID The ID of the created deposit
         @return interestAmount The amount of fixed-rate interest
      */
-    function deposit(uint256 depositAmount, uint64 maturationTimestamp) external returns (uint64 depositID, uint256 interestAmount);
+    function deposit(uint256 depositAmount, uint64 maturationTimestamp)
+        external
+        returns (uint64 depositID, uint256 interestAmount);
 
     /**
         @notice Create a deposit using `depositAmount` stablecoin that matures at timestamp `maturationTimestamp`.
@@ -90,7 +103,9 @@ interface IDInterest {
     @param depositAmount The amount to top up, in stablecoin
     @return interestAmount The amount of interest that will be earned by the topped up funds at maturation
  */
-    function topupDeposit(uint64 depositID, uint256 depositAmount) external returns (uint256 interestAmount);
+    function topupDeposit(uint64 depositID, uint256 depositAmount)
+        external
+        returns (uint256 interestAmount);
 
     /**
         @notice Add `depositAmount` stablecoin to the existing deposit with ID `depositID`.
@@ -106,7 +121,6 @@ interface IDInterest {
         uint256 minimumInterestAmount
     ) external returns (uint256 interestAmount);
 
-
     /**
         @notice Withdraw all funds from deposit with ID `depositID` and use them
                 to create a new deposit that matures at time `maturationTimestamp`
@@ -114,7 +128,9 @@ interface IDInterest {
         @param maturationTimestamp The Unix timestamp of the new deposit, in seconds
         @return newDepositID The ID of the new deposit
      */
-    function rolloverDeposit(uint64 depositID, uint64 maturationTimestamp) external returns (uint256 newDepositID, uint256 interestAmount);
+    function rolloverDeposit(uint64 depositID, uint64 maturationTimestamp)
+        external
+        returns (uint256 newDepositID, uint256 interestAmount);
 
     /**
         @notice Withdraw all funds from deposit with ID `depositID` and use them
@@ -144,7 +160,11 @@ interface IDInterest {
         NOTE: @param virtualTokenAmount when premature amount takes into account the interest already. If you want to withdraw 10k amount,
         you must input 10,000 * interest amount. When mature, request exact amount 10k.
      */
-    function withdraw(uint64 depositID, uint256 virtualTokenAmount, bool early) external returns (uint256 withdrawnStablecoinAmount);
+    function withdraw(
+        uint64 depositID,
+        uint256 virtualTokenAmount,
+        bool early
+    ) external returns (uint256 withdrawnStablecoinAmount);
 
     /**
         @notice Returns the Deposit struct associated with the deposit with ID
@@ -152,7 +172,10 @@ interface IDInterest {
         @param depositID The ID of the deposit
         @return The deposit struct
      */
-    function getDeposit(uint64 depositID) external view returns (Deposit memory);
+    function getDeposit(uint64 depositID)
+        external
+        view
+        returns (Deposit memory);
 
     /**
       @notice Computes the amount of fixed-rate interest (before fees) that
@@ -184,7 +207,9 @@ interface IStake is IERC20 {
         @param _shareAmount The amount of xMPH to burn
         @return mphAmount The amount of MPH withdrawn
      */
-    function withdraw(uint256 _shareAmount) external returns (uint256 mphAmount);
+    function withdraw(uint256 _shareAmount)
+        external
+        returns (uint256 mphAmount);
 
     function getPricePerFullShare() external view returns (uint256);
 }
@@ -206,7 +231,6 @@ interface INft {
     function contractURI() external view returns (string memory);
 
     function setTokenURI(uint256 tokenId, string calldata newURI) external;
-
 }
 
 interface INftDescriptor {
@@ -217,5 +241,8 @@ interface INftDescriptor {
         string symbol;
     }
 
-    function constructTokenURI(URIParams memory params) external pure returns (string memory);
+    function constructTokenURI(URIParams memory params)
+        external
+        pure
+        returns (string memory);
 }

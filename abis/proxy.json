@@ -14,11 +14,7 @@
     "remappings": [],
     "outputSelection": {
       "*": {
-        "*": [
-          "evm.bytecode",
-          "evm.deployedBytecode",
-          "abi"
-        ]
+        "*": ["evm.bytecode", "evm.deployedBytecode", "abi"]
       }
     }
   },

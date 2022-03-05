@@ -7,7 +7,7 @@ interface IWETH9 {
 
     function deposit() external payable;
 
-    function withdraw(uint wad) external;
+    function withdraw(uint256 wad) external;
 
-    function approve(address guy, uint wad) external returns (bool);
+    function approve(address guy, uint256 wad) external returns (bool);
 }

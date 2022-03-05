@@ -16,7 +16,8 @@ contract StrategyFactory {
         address _tradeFactory,
         string memory _strategyName
     ) public {
-        Strategy _original = new Strategy(_vault, _pool, _tradeFactory, _strategyName);
+        Strategy _original =
+            new Strategy(_vault, _pool, _tradeFactory, _strategyName);
         emit Deployed(address(_original));
 
         original = address(_original);
@@ -27,14 +28,14 @@ contract StrategyFactory {
 
     function name() external view returns (string memory) {
         return
-        string(
-            abi.encodePacked(
-                "Factory",
-                Strategy(payable(original)).name(),
-                "@",
-                Strategy(payable(original)).apiVersion()
-            )
-        );
+            string(
+                abi.encodePacked(
+                    "Factory",
+                    Strategy(payable(original)).name(),
+                    "@",
+                    Strategy(payable(original)).apiVersion()
+                )
+            );
     }
 
     function clone(
@@ -49,15 +50,29 @@ contract StrategyFactory {
         // Copied from https://github.com/optionality/clone-factory/blob/master/contracts/CloneFactory.sol
         bytes20 addressBytes = bytes20(original);
         assembly {
-        // EIP-1167 bytecode
+            // EIP-1167 bytecode
             let clone_code := mload(0x40)
-            mstore(clone_code, 0x3d602d80600a3d3981f3363d3d373d3d3d363d73000000000000000000000000)
+            mstore(
+                clone_code,
+                0x3d602d80600a3d3981f3363d3d373d3d3d363d73000000000000000000000000
+            )
             mstore(add(clone_code, 0x14), addressBytes)
-            mstore(add(clone_code, 0x28), 0x5af43d82803e903d91602b57fd5bf30000000000000000000000000000000000)
+            mstore(
+                add(clone_code, 0x28),
+                0x5af43d82803e903d91602b57fd5bf30000000000000000000000000000000000
+            )
             newStrategy := create(0, clone_code, 0x37)
         }
 
-        Strategy(newStrategy).initialize(_vault, _strategist, _rewards, _keeper, _pool, _tradeFactory, _strategyName);
+        Strategy(newStrategy).initialize(
+            _vault,
+            _strategist,
+            _rewards,
+            _keeper,
+            _pool,
+            _tradeFactory,
+            _strategyName
+        );
         emit Cloned(newStrategy);
     }
 }
