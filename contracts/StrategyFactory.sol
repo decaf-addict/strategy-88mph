@@ -13,11 +13,9 @@ contract StrategyFactory {
     constructor(
         address _vault,
         address _pool,
-        address _tradeFactory,
         string memory _strategyName
     ) public {
-        Strategy _original =
-            new Strategy(_vault, _pool, _tradeFactory, _strategyName);
+        Strategy _original = new Strategy(_vault, _pool, _strategyName);
         emit Deployed(address(_original));
 
         original = address(_original);
@@ -44,7 +42,6 @@ contract StrategyFactory {
         address _rewards,
         address _keeper,
         address _pool,
-        address _tradeFactory,
         string memory _strategyName
     ) external returns (address payable newStrategy) {
         // Copied from https://github.com/optionality/clone-factory/blob/master/contracts/CloneFactory.sol
@@ -64,15 +61,7 @@ contract StrategyFactory {
             newStrategy := create(0, clone_code, 0x37)
         }
 
-        Strategy(newStrategy).initialize(
-            _vault,
-            _strategist,
-            _rewards,
-            _keeper,
-            _pool,
-            _tradeFactory,
-            _strategyName
-        );
+        Strategy(newStrategy).initialize(_vault, _strategist, _rewards, _keeper, _pool, _strategyName);
         emit Cloned(newStrategy);
     }
 }

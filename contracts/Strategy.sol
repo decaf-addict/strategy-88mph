@@ -73,10 +73,10 @@ contract Strategy is BaseStrategy, IERC721Receiver {
     constructor(
         address _vault,
         address _pool,
-        address _tradeFactory,
         string memory _strategyName
-    ) public BaseStrategy(_vault) {
-        _initializeStrat(_vault, _pool, _tradeFactory, _strategyName);
+    )
+    public BaseStrategy(_vault) {
+        _initializeStrat(_vault, _pool, _strategyName);
     }
 
     function initialize(
@@ -85,17 +85,15 @@ contract Strategy is BaseStrategy, IERC721Receiver {
         address _rewards,
         address _keeper,
         address _pool,
-        address _tradeFactory,
         string memory _strategyName
     ) external {
         _initialize(_vault, _strategist, _rewards, _keeper);
-        _initializeStrat(_vault, _pool, _tradeFactory, _strategyName);
+        _initializeStrat(_vault, _pool, _strategyName);
     }
 
     function _initializeStrat(
         address _vault,
         address _pool,
-        address _tradeFactory,
         string memory _strategyName
     ) internal {
         strategyName = _strategyName;

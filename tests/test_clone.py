@@ -33,7 +33,7 @@ def test_clone(
 ):
     with brownie.reverts("Strategy already initialized"):
         strategy.initialize(
-            vault, strategist, rewards, keeper, pool, tradeFactory, "", {"from": gov}
+            vault, strategist, rewards, keeper, pool, "", {"from": gov}
         )
 
     transaction = strategyFactory.clone(
@@ -42,7 +42,6 @@ def test_clone(
         rewards,
         keeper,
         pool2,
-        tradeFactory,
         "new strategy name",
         {"from": gov},
     )
@@ -52,7 +51,7 @@ def test_clone(
 
     with brownie.reverts("Strategy already initialized"):
         cloned_strategy.initialize(
-            vault, strategist, rewards, keeper, pool2, tradeFactory, "", {"from": gov}
+            vault, strategist, rewards, keeper, pool2, "", {"from": gov}
         )
 
     vault2.addStrategy(cloned_strategy, 10_000, 0, 2 ** 256 - 1, 1_000, {"from": gov})

@@ -41,7 +41,6 @@ def test_migration(
         StrategyFactory,
         vault,
         pool,
-        tradeFactory,
         "88MPH <TokenSymbol> via <ProtocolName>",
     )
     new_strategy = Strategy.at(new_factory.original())

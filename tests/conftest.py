@@ -219,16 +219,8 @@ def percentageFeeModel():
 
 
 @pytest.fixture
-def strategyFactory(
-    strategist, keeper, vault, StrategyFactory, gov, pool, tradeFactory
-):
-    factory = strategist.deploy(
-        StrategyFactory,
-        vault,
-        pool,
-        tradeFactory,
-        "88MPH <TokenSymbol> via <ProtocolName>",
-    )
+def strategyFactory(strategist, keeper, vault, StrategyFactory, gov, pool, tradeFactory):
+    factory = strategist.deploy(StrategyFactory, vault, pool, "88MPH <TokenSymbol> via <ProtocolName>")
     yield factory
 
 
