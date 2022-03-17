@@ -46,18 +46,25 @@ def keeper(accounts):
 
 
 token_address = {
-    "WFTM": "0x21be370D5312f44cB42ce377BC9b8a0cEF1A4C83",
-    "DAI": "0x8D11eC38a3EB5E956B052f67Da8Bdc9bef8Abf3E",
-    "USDC": "0x04068DA6C83AFCFA0e13ba15A6696662335D5B75",
+    "GUSD": "0x056Fd409E1d7A124BD7017459dFEa2F387b6d5Cd",
+    "USDT": "0xdac17f958d2ee523a2206206994597c13d831ec7",
+    "WETH": "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
+    "WBTC": "0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599",
+    "DAI": "0x6b175474e89094c44da98b954eedeac495271d0f",
+    "USDC": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+    "LINK": "0x514910771AF9Ca656af840dff83E8264EcF986CA",
 }
 
 
-@pytest.fixture(
-    params=[
-        "WFTM",
-        "DAI",
-        "USDC",
-    ],
+@pytest.fixture(params=[
+    # "GUSD", # Bancor has no GUSD liquidity rip...
+    "USDT",
+    "WETH",
+    "WBTC",
+    "DAI",
+    # "USDC",
+    "LINK",
+],
     scope="session",
     autouse=True,
 )
@@ -66,9 +73,13 @@ def token(request):
 
 
 whale_address = {
-    "WFTM": "0x39B3bd37208CBaDE74D0fcBDBb12D606295b430a",
-    "DAI": "0x07E6332dD090D287d3489245038daF987955DCFB",
-    "USDC": "0x93C08a3168fC469F3fC165cd3A471D19a37ca19e",
+    "GUSD": "0x5f65f7b609678448494De4C87521CdF6cEf1e932",
+    "USDT": "0xa929022c9107643515f5c777ce9a910f0d1e490c",
+    "WETH": "0x030ba81f1c18d280636f32af80b9aad02cf0854e",
+    "WBTC": "0xccf4429db6322d5c611ee964527d42e5d685dd6a",
+    "DAI": "0x5d3a536E4D6DbD6114cc1Ead35777bAB948E3643",
+    "USDC": "0x0A59649758aa4d66E25f08Dd01271e891fe52199",
+    "LINK": "0x98C63b7B319dFBDF3d811530F2ab9DfE4983Af9D",
 }
 
 
@@ -78,9 +89,14 @@ def token_whale(accounts, token):
 
 
 pools = {
-    "WFTM": "0x23fe5a2BA80ea2251843086eC000911CFc79c864",  # WFTM via Geist
-    "DAI": "0xa78276C04D8d807FeB8271fE123C1f94c08A414d",  # DAI via Scream"
-    "USDC": "0xF7fb7F095C8D0F4ee8ffBd142FE0b311491B45F3",  # USDC via Scream
+    "GUSD": "0xbFDB51ec0ADc6D5bF2ebBA54248D40f81796E12B",  # GUSD via Aave
+    "USDT": "0xb1b225402b5ec977af8c721f42f21db5518785dc",  # USDT via Aave
+    "WETH": "0xaE5ddE7EA5c44b38c0bCcfb985c40006ED744EA6",  # WETH via Aave
+    "WBTC": "0xA0E78812E9cD3E754a83bbd74A3F1579b50436E8",  # WBTC via Compound
+    # "DAI": "0x4B4626c1265d22B71ded11920795A3c6127A0559",  # DAI via BProtocol
+    "DAI": "0x6D97eA6e14D35e10b50df9475e9EFaAd1982065E",  # DAI via Aave
+    "USDC": "0xF61681b8Cbf87615F30f96F491FA28a2Ff39947a",  # USDC via Cream
+    "LINK": "0x572be575d1aa1ca84d8ac4274067f7bcb578a368",  # LINK via Compound
 }
 
 
@@ -91,14 +107,18 @@ def pool(token):
 
 @pytest.fixture
 def mph_token():
-    contract_address = "0x511a986E427FFa281ACfCf07AAd70d03040DbEc0"
+    contract_address = "0x8888801aF4d980682e47f1A9036e589479e835C5"
     yield Contract(contract_address)
 
 
 amounts = {
-    "WFTM": 1_000_000,  # WFTM via Geist
-    "DAI": 10_000_000,  # DAI via Scream
-    "USDC": 10_000_000,  # USDC via Scream
+    "GUSD": 10_000_000,  # GUSD via Aave
+    "USDT": 10_000_000,  # USDT via Aave
+    "WETH": 10_000,  # WETH via Aave
+    "WBTC": 1_000,  # WBTC via Compound
+    "DAI": 10_000_000,  # DAI via BProtocol/Aave
+    "USDC": 10_000_000,  # USDC via Cream. RIP cream
+    "LINK": 500_000,  # LINK via Compound
 }
 
 
@@ -111,9 +131,13 @@ def amount(accounts, token, user, token_whale):
 
 # map for testing clones. I.e. Original: GUSD -> Cloned: USDT
 token_to_token2 = {
-    "WFTM": "DAI",
-    "DAI": "USDC",
-    "USDC": "WFTM",
+    "GUSD": "USDT",
+    "USDT": "WETH",
+    "WETH": "WBTC",
+    "WBTC": "DAI",
+    "DAI": "LINK",
+    "USDC": "LINK",
+    "LINK": "DAI",
 }
 
 
@@ -142,9 +166,14 @@ def amount2(accounts, token2, user, token2_whale):
 # some protocols like compound have a minimum withdrawal amount due to difference in decimals (cDAI is 8 decimals)
 # 1e10 comes from DAI dec 1e18 - cDAI decimal 1e8 -> need a minimum of 1e10 DAI in order to swap out cDAI > 0
 mins = {
-    "WFTM": [1, 0],  # WFTM via Geist
-    "DAI": [1e8, 0],  # DAI via Scream
-    "USDC": [1, 0],  # USDC via Scream
+    "GUSD": [0, 0],  # GUSD via Aave
+    "USDT": [1, 0],  # USDT via Aave
+    "WETH": [0, 0],  # WETH via Aave
+    "WBTC": [1, 1e1],  # WBTC via Compound
+    # "DAI": [1e10, 1e9],  # DAI via BProtocol
+    "DAI": [1e6, 1e6],  # DAI via Aave
+    "USDC": [0, 1e2],  # USDC via Cream
+    "LINK": [1e10, 1e6],  # LINK via Compound
 }
 
 
@@ -159,31 +188,26 @@ def min2(token2):
 
 
 @pytest.fixture
-def wftm():
-    token_address = "0x21be370D5312f44cB42ce377BC9b8a0cEF1A4C83"
+def weth():
+    token_address = "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2"
     yield Contract(token_address)
 
 
 @pytest.fixture
-def wftm_whale(accounts):
-    yield accounts.at("0x39b3bd37208cbade74d0fcbdbb12d606295b430a", force=True)
-
-
-@pytest.fixture
-def wftm_amount(user, wftm, wftm_whale):
-    wftm_amount = 10 ** wftm.decimals()
-    wftm.transfer(user, wftm_amount, {"from": wftm_whale})
-    yield wftm_amount
+def weth_amout(user, weth):
+    weth_amout = 10 ** weth.decimals()
+    user.transfer(weth, weth_amout)
+    yield weth_amout
 
 
 @pytest.fixture
 def stakeToken():
-    yield Contract("0x511a986E427FFa281ACfCf07AAd70d03040DbEc0")
+    yield Contract("0x8888801aF4d980682e47f1A9036e589479e835C5")
 
 
 @pytest.fixture
 def tradeFactory():
-    yield Contract("0xD3f89C21719Ec5961a3E6B0f9bBf9F9b4180E9e9")
+    yield Contract("0x7BAF843e06095f68F4990Ca50161C2C4E4e01ec6")
 
 
 @pytest.fixture(scope="function", autouse=True)
@@ -210,12 +234,12 @@ def vault2(pm, gov, rewards, guardian, management, token2):
 
 @pytest.fixture
 def percentageFeeModelOwner(accounts):
-    yield accounts.at("0x916e78f904B5e854DB0578646AA182C0AAbED8C8", force=True)
+    yield accounts.at("0x56f34826cc63151f74fa8f701e4f73c5eaae52ad", force=True)
 
 
 @pytest.fixture
 def percentageFeeModel():
-    yield Contract("0xD7A7485c53D0a2dB0Df0d23B3fABA1560e4Cdacb")
+    yield Contract("0x9c2ae492ec3A49c769bABffC9500256749404f8E")
 
 
 @pytest.fixture
@@ -226,25 +250,17 @@ def strategyFactory(strategist, keeper, vault, StrategyFactory, gov, pool, trade
 
 @pytest.fixture
 def yMechs():
-    yield Contract("0x9f2A061d6fEF20ad3A656e23fd9C814b75fd5803")
+    yield Contract("0x2C01B4AD51a67E2d8F02208F54dF9aC4c0B778B6")
 
 
 @pytest.fixture
 def mech(accounts):
-    yield accounts.at("0x0000000031669Ab4083265E0850030fa8dEc8daf", force=True)
-
-
-@pytest.fixture
-def swapper(tradeFactory, yMechs):
-    # async spooky
-    swapper = Contract("0x8298C9a1760346C474c570881B1F6E56ECA038B7")
-    tradeFactory.addSwappers([swapper], {"from": yMechs})
-    yield swapper
+    yield accounts.at("0x2C01B4AD51a67E2d8F02208F54dF9aC4c0B778B6", force=True)
 
 
 @pytest.fixture
 def strategy(
-    chain, keeper, vault, gov, min, strategyFactory, Strategy, tradeFactory, yMechs
+        chain, keeper, vault, gov, min, strategyFactory, Strategy, tradeFactory, yMechs
 ):
     strategy = Strategy.at(strategyFactory.original())
     strategy.setKeeper(keeper, {"from": gov})

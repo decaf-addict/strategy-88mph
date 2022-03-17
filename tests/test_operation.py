@@ -89,7 +89,6 @@ def test_profitable_harvest(
     strategist,
     amount,
     mech,
-    swapper,
     RELATIVE_APPROX,
     gov,
     tradeFactory,
@@ -122,7 +121,7 @@ def test_profitable_harvest(
     strategy.harvest({"from": gov})
     chain.sleep(3600)  # 6 hrs needed for profits to unlock
     chain.mine(1)
-    # util.yswap_execute(tradeFactory, strategy, strategy.reward(), strategy.want(), swapper, mech)
+
     util.airdrop_want(token_whale, token, strategy, amount / 1000)
     strategy.harvest({"from": gov})
     profit = token.balanceOf(vault.address)  # Profits go to vault
@@ -225,7 +224,6 @@ def test_change_debt(
     percentageFeeModel,
     percentageFeeModelOwner,
     tradeFactory,
-    swapper,
     mech,
     token_whale,
 ):
@@ -281,7 +279,7 @@ def test_change_debt(
     assert after_pps > before_pps
 
 
-def test_sweep(gov, vault, strategy, token, user, amount, wftm, wftm_amount):
+def test_sweep(gov, vault, strategy, token, user, amount):
     # Strategy want token doesn't work
     token.transfer(strategy, amount, {"from": user})
     assert token.address == strategy.want()
@@ -309,7 +307,7 @@ def test_sweep(gov, vault, strategy, token, user, amount, wftm, wftm_amount):
 
 
 def test_triggers(
-    chain, gov, vault, strategy, token, amount, user, wftm, wftm_amount, strategist
+    chain, gov, vault, strategy, token, amount, user, strategist
 ):
     # Deposit to the vault and harvest
     token.approve(vault.address, amount, {"from": user})
@@ -332,7 +330,6 @@ def test_profitable_harvest_with_keep(
     strategist,
     amount,
     mech,
-    swapper,
     RELATIVE_APPROX,
     gov,
     tradeFactory,
@@ -372,7 +369,7 @@ def test_profitable_harvest_with_keep(
     strategy.harvest({"from": gov})
     chain.sleep(3600)  # 6 hrs needed for profits to unlock
     chain.mine(1)
-    # util.yswap_execute(tradeFactory, strategy, strategy.reward(), strategy.want(), swapper, mech)
+
     util.airdrop_want(token_whale, token, strategy, amount / 1000)
     strategy.harvest({"from": gov})
     profit = token.balanceOf(vault.address)  # Profits go to vault
