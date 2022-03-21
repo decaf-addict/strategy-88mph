@@ -257,10 +257,14 @@ def yMechs():
 def mech(accounts):
     yield accounts.at("0x2C01B4AD51a67E2d8F02208F54dF9aC4c0B778B6", force=True)
 
+@pytest.fixture
+def router():
+    bancor_router = Contract("0x2F9EC37d6CcFFf1caB21733BdaDEdE11c823cCB0")
+    return bancor_router
 
 @pytest.fixture
 def strategy(
-        chain, keeper, vault, gov, min, strategyFactory, Strategy, tradeFactory, yMechs
+        chain, keeper, vault, gov, min, strategyFactory, Strategy, tradeFactory, yMechs, router
 ):
     strategy = Strategy.at(strategyFactory.original())
     strategy.setKeeper(keeper, {"from": gov})
