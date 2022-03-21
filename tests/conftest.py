@@ -104,6 +104,18 @@ pools = {
 def pool(token):
     yield pools[token.symbol()]
 
+base_bancor_path = ["0x8888801aF4d980682e47f1A9036e589479e835C5", "0xAbf26410b1cfF45641aF087eE939E52e328ceE46", "0x1F573D6Fb3F13d689FF844B4cE37794d79a7FF1C"]
+token_bancor_paths = {
+    "USDT": ["0x5365B5BC56493F08A38E5Eb08E36cBbe6fcC8306", "0xdAC17F958D2ee523a2206206994597C13D831ec7"],
+    "WETH": ["0xb1CD6e4153B2a390Cf00A6556b0fC1458C4A5533", "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2"],
+    "WBTC": ["0xFEE7EeaA0c2f3F7C7e6301751a8dE55cE4D059Ec", "0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599"],
+    "DAI": ["0xE5Df055773Bf9710053923599504831c7DBdD697", "0x6B175474E89094C44Da98b954EedeAC495271d0F"],
+    "LINK": ["0x04D0231162b4784b706908c787CE32bD075db9b7", "0x514910771AF9Ca656af840dff83E8264EcF986CA"]
+}
+
+@pytest.fixture(scope="session", autouse=True)
+def yswaps_path(token):
+    yield base_bancor_path + token_bancor_paths[token.symbol()]
 
 @pytest.fixture
 def mph_token():
