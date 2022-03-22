@@ -58,10 +58,10 @@ token_address = {
 
 @pytest.fixture(params=[
     # "GUSD", # Bancor has no GUSD liquidity rip...
-    "USDT",
-    "WETH",
-    "WBTC",
-    "DAI",
+    # "USDT",
+    # "WETH",
+    # "WBTC",
+    # "DAI",
     # "USDC",
     "LINK",
 ],
@@ -107,7 +107,7 @@ def pool(token):
 base_bancor_path = ["0x8888801aF4d980682e47f1A9036e589479e835C5", "0xAbf26410b1cfF45641aF087eE939E52e328ceE46", "0x1F573D6Fb3F13d689FF844B4cE37794d79a7FF1C"]
 token_bancor_paths = {
     "USDT": ["0x5365B5BC56493F08A38E5Eb08E36cBbe6fcC8306", "0xdAC17F958D2ee523a2206206994597C13D831ec7"],
-    "WETH": ["0xb1CD6e4153B2a390Cf00A6556b0fC1458C4A5533", "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2"],
+    "WETH": ["0xb1CD6e4153B2a390Cf00A6556b0fC1458C4A5533", "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE"],
     "WBTC": ["0xFEE7EeaA0c2f3F7C7e6301751a8dE55cE4D059Ec", "0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599"],
     "DAI": ["0xE5Df055773Bf9710053923599504831c7DBdD697", "0x6B175474E89094C44Da98b954EedeAC495271d0F"],
     "LINK": ["0x04D0231162b4784b706908c787CE32bD075db9b7", "0x514910771AF9Ca656af840dff83E8264EcF986CA"]
@@ -179,13 +179,13 @@ def amount2(accounts, token2, user, token2_whale):
 # 1e10 comes from DAI dec 1e18 - cDAI decimal 1e8 -> need a minimum of 1e10 DAI in order to swap out cDAI > 0
 mins = {
     "GUSD": [0, 0],  # GUSD via Aave
-    "USDT": [1, 0],  # USDT via Aave
+    "USDT": [0, 0],  # USDT via Aave
     "WETH": [0, 0],  # WETH via Aave
-    "WBTC": [1, 1e1],  # WBTC via Compound
+    "WBTC": [0, 1e1],  # WBTC via Compound
     # "DAI": [1e10, 1e9],  # DAI via BProtocol
-    "DAI": [1e6, 1e6],  # DAI via Aave
+    "DAI": [0, 1e6],  # DAI via Aave
     "USDC": [0, 1e2],  # USDC via Cream
-    "LINK": [1e10, 1e6],  # LINK via Compound
+    "LINK": [1e6, 1e6],  # LINK via Compound
 }
 
 

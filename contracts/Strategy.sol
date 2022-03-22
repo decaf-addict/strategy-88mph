@@ -312,6 +312,8 @@ contract Strategy is BaseStrategy, IERC721Receiver {
         }
         // ensure that withdraw amount is more than minWithdraw amount, otherwise some protocols will revert
         if (_virtualAmount > minWithdraw) {
+            // +1 bc of rounding error sometimes exiting 1 wei less
+            _virtualAmount = Math.min(_virtualAmount.add(1), getDepositInfo().virtualTokenTotalSupply);
             pool.withdraw(depositId, _virtualAmount, !hasMatured());
         }
     }
