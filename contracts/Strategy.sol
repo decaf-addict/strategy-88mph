@@ -11,10 +11,7 @@ BaseStrategy,
 StrategyParams
 } from "@yearnvaults/contracts/BaseStrategy.sol";
 import {
-SafeERC20,
-SafeMath,
-IERC20,
-Address
+IERC20, Address
 } from "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 import {
 IERC721Receiver
@@ -40,10 +37,6 @@ interface IPercentageFeeModel {
 }
 
 contract Strategy is BaseStrategy, IERC721Receiver {
-    using SafeERC20 for IERC20;
-    using Address for address;
-    using SafeMath for uint256;
-
     string internal strategyName;
     // deposit position nft
     INft public depositNft;
