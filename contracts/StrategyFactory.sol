@@ -28,8 +28,7 @@ contract StrategyFactory {
         return
             string(
                 abi.encodePacked(
-                    "Factory",
-                    Strategy(payable(original)).name(),
+                    "Factory88MPH",
                     "@",
                     Strategy(payable(original)).apiVersion()
                 )

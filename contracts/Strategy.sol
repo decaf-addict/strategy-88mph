@@ -6,16 +6,9 @@ pragma solidity 0.6.12;
 pragma experimental ABIEncoderV2;
 
 // These are the core Yearn libraries
-import {
-BaseStrategy,
-StrategyParams
-} from "@yearnvaults/contracts/BaseStrategy.sol";
-import {
-IERC20, Address
-} from "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
-import {
-IERC721Receiver
-} from "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
+import {BaseStrategy, StrategyParams} from "@yearnvaults/contracts/BaseStrategy.sol";
+import {IERC20, Address} from "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
+import {IERC721Receiver} from "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
 import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {Math} from "@openzeppelin/contracts/math/Math.sol";
