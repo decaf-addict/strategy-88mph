@@ -4,8 +4,8 @@
 
 import pytest
 
-
 def test_migration(
+    accounts,
     chain,
     token,
     vault,
@@ -47,9 +47,19 @@ def test_migration(
     tradeFactory.grantRole(
         tradeFactory.STRATEGY(), new_strategy, {"from": yMechs, "gas_price": "0 gwei"}
     )
+
+    # test that nft received can't be spoofed before `oldStrategy` is set
+    new_strategy.onERC721Received(strategy, strategy, 123, 0x6465706f736974, {"from": accounts[0]})
+    assert new_strategy.depositId() != 123
+
     new_strategy.setOldStrategy(strategy, {"from": gov})
     new_strategy.setMinWithdraw(min[0], {"from": gov})
     oldDepositId = strategy.depositId()
+
+    # test that nft recived can't be spoofed after `oldStrategy` is set
+    new_strategy.onERC721Received(strategy, strategy, 123, 0x6465706f736974, {"from": accounts[0]})
+    assert new_strategy.depositId() != 123
+
     vault.migrateStrategy(strategy, new_strategy, {"from": gov})
 
     assert (
